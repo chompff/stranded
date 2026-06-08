@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Stranded in Paradise</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, auto !important; }
+  @font-face { font-family: 'Tahiti'; src: url('/assets/tahiti-8gB10FcK.otf') format('opentype'); }
+  html, body { overflow: hidden; background: #000; width: 100%; height: 100%; }
+  canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
+
+  /* Music UI */
+  .music-ui {
+    position: fixed;
+    bottom: max(20px, env(safe-area-inset-bottom, 20px));
+    left: max(20px, env(safe-area-inset-left, 20px));
+    z-index: 100;
+    display: flex;
+    gap: 8px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .music-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 16px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-radius: 20px;
+    background: rgba(0,0,0,0.3);
+    color: #fff;
+    font: 600 13px/1 system-ui, sans-serif;
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.2s;
+    pointer-events: all !important;
+  }
+  .music-btn:hover { background: rgba(0,0,0,0.5); }
+  .music-btn:active { transform: scale(0.95); }
+  .music-btn.playing {
+    background: rgba(255,255,255,0.85);
+    color: #1a1a2e;
+    border-color: #fff;
+  }
+  /* Equalizer bars inside button */
+  .eq-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+  .eq-bar {
+    width: 3px;
+    background: currentColor;
+    border-radius: 1px;
+    transition: height 0.15s ease;
+  }
+  .music-btn:not(.playing) .eq-bar { height: 4px !important; }
+  .music-btn.playing .eq-bar { animation: eqBounce 1s ease-in-out infinite alternate; }
+  .music-btn.playing .eq-bar:nth-child(1) { animation-duration: 0.8s; animation-delay: -0.2s; }
+  .music-btn.playing .eq-bar:nth-child(2) { animation-duration: 1.1s; animation-delay: -0.5s; }
+  .music-btn.playing .eq-bar:nth-child(3) { animation-duration: 0.9s; animation-delay: -0.8s; }
+  .music-btn.playing .eq-bar:nth-child(4) { animation-duration: 1.2s; animation-delay: -0.3s; }
+  @keyframes eqBounce {
+    0%   { height: 4px; }
+    50%  { height: 14px; }
+    100% { height: 6px; }
+  }
+
+
+  /* Cloud toggle (dev) */
+  .cloud-toggle {
+    position: fixed;
+    top: max(20px, env(safe-area-inset-top, 20px));
+    right: max(20px, env(safe-area-inset-right, 20px));
+    z-index: 100;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .cloud-toggle button {
+    padding: 8px 16px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-radius: 20px;
+    background: rgba(0,0,0,0.3);
+    color: #fff;
+    font: 600 13px/1 system-ui, sans-serif;
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all 0.2s;
+  }
+  .cloud-toggle button:hover { background: rgba(0,0,0,0.5); }
+  .cloud-toggle button.active {
+    background: rgba(255,255,255,0.85);
+    color: #1a1a2e;
+    border-color: #fff;
+  }
+  .cam-arrow {
+    min-width: 32px !important;
+    padding: 6px 10px !important;
+    font-size: 12px;
+  }
+  #btnTopDown {
+    min-width: 56px;
+    font-weight: bold;
+  }
+  .cam-divider {
+    display: inline-block;
+    width: 2px;
+    height: 22px;
+    background: rgba(255,255,255,0.3);
+    margin: 0 4px;
+    vertical-align: middle;
+    align-self: center;
+  }
+  /* DNC slider thumb */
+  #dncSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid rgba(255,255,255,0.8);
+    box-shadow: 0 0 6px rgba(255,200,100,0.6);
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+  }
+  #dncSlider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid rgba(255,255,255,0.8);
+    box-shadow: 0 0 6px rgba(255,200,100,0.6);
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+  }
+  /* ── Signup Bar (guest users) ── */
+  .signup-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    flex-wrap: wrap;
+    transform: translateY(-100%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .signup-bar.visible { display: flex; }
+  .signup-bar.slid-in { transform: translateY(0); }
+  .signup-label {
+    font: 400 clamp(0.75rem, 2vw, 0.9rem)/1.4 system-ui, sans-serif;
+    color: rgba(255,255,255,0.8);
+    text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+    white-space: nowrap;
+  }
+  .signup-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .signup-input {
+    padding: 8px 14px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 25px;
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #fff;
+    font: 400 13px/1 system-ui, sans-serif;
+    text-align: left;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    width: min(200px, 40vw);
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, text !important;
+  }
+  .signup-input::placeholder { color: rgba(255,255,255,0.5); }
+  .signup-input:focus {
+    border-color: rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.35);
+  }
+  .signup-error {
+    color: #ff9999;
+    font: 400 12px/1.4 system-ui, sans-serif;
+    text-align: center;
+  }
+
+  /* ── Shared pill-button base ── */
+  .bar-btn {
+    padding: 8px 14px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-radius: 25px;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #fff;
+    font: 600 13px/1 system-ui, sans-serif;
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    transition: all 0.2s;
+    white-space: nowrap;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .bar-btn:hover { background: rgba(255,255,255,0.3); }
+  .bar-btn:active { transform: scale(0.96); }
+  .bar-btn:disabled { opacity: 0.5; cursor: default !important; }
+
+  /* ── "Add a Wish" button — morphs into wish input ── */
+  .wish-btn-wrap {
+    display: inline-flex;
+    position: relative;
+    overflow: hidden;
+    border-radius: 25px;
+    transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .wish-btn-wrap.expanded {
+    overflow: visible;
+  }
+  .wish-toggle {
+    transition: opacity 0.25s ease, max-width 0.35s ease, padding 0.35s ease;
+    max-width: 160px;
+    overflow: hidden;
+    border-style: dotted;
+  }
+  .wish-btn-wrap.expanded .wish-toggle {
+    opacity: 0;
+    max-width: 0;
+    padding: 0;
+    border-width: 0;
+    pointer-events: none;
+  }
+  .wish-input {
+    padding: 8px 14px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 25px;
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #fff;
+    font: 400 13px/1 system-ui, sans-serif;
+    outline: none;
+    transition: max-width 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease 0.1s, padding 0.4s ease, border-width 0.35s ease;
+    max-width: 0;
+    opacity: 0;
+    padding-left: 0; padding-right: 0;
+    border-width: 0;
+    overflow: hidden;
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, text !important;
+  }
+  .wish-btn-wrap.expanded .wish-input {
+    max-width: min(220px, 35vw);
+    opacity: 1;
+    padding: 8px 14px;
+    border-width: 2px;
+  }
+  .wish-input::placeholder { color: rgba(255,255,255,0.5); }
+  .wish-input:focus {
+    border-color: rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.35);
+  }
+
+  /* ── Wish dropdown suggestions ── */
+  .wish-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 240px;
+    background: rgba(10,10,20,0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 14px;
+    padding: 6px 0;
+    z-index: 300;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform: translateX(-50%) translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .wish-dropdown.open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .wish-dropdown-item {
+    padding: 8px 16px;
+    color: rgba(255,255,255,0.8);
+    font: 400 12px/1.4 system-ui, sans-serif;
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .wish-dropdown-item:hover {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+  .wish-dropdown-item:first-child { border-radius: 12px 12px 0 0; }
+  .wish-dropdown-item:last-child { border-radius: 0 0 12px 12px; }
+
+  /* ── "Report a Bug" button — morphs into bug input ── */
+  .bug-btn-wrap {
+    display: inline-flex;
+    position: relative;
+    overflow: hidden;
+    border-radius: 25px;
+    transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .bug-btn-wrap.expanded {
+    overflow: visible;
+  }
+  .bug-toggle {
+    transition: opacity 0.25s ease, max-width 0.35s ease, padding 0.35s ease;
+    max-width: 160px;
+    overflow: hidden;
+    border-style: dotted;
+  }
+  .bug-btn-wrap.expanded .bug-toggle {
+    opacity: 0;
+    max-width: 0;
+    padding: 0;
+    border-width: 0;
+    pointer-events: none;
+  }
+  .bug-input {
+    padding: 8px 14px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 25px;
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #fff;
+    font: 400 13px/1 system-ui, sans-serif;
+    outline: none;
+    transition: max-width 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease 0.1s, padding 0.4s ease, border-width 0.35s ease;
+    max-width: 0;
+    opacity: 0;
+    padding-left: 0; padding-right: 0;
+    border-width: 0;
+    overflow: hidden;
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, text !important;
+  }
+  .bug-btn-wrap.expanded .bug-input {
+    max-width: min(260px, 45vw);
+    opacity: 1;
+    padding: 8px 14px;
+    border-width: 2px;
+  }
+  .bug-input::placeholder { color: rgba(255,255,255,0.5); }
+  .bug-input:focus {
+    border-color: rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.35);
+  }
+
+  /* ── Divider before Send ── */
+  .bar-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(255,255,255,0.3);
+    flex-shrink: 0;
+  }
+
+  /* ── Send button spinner ── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .bar-btn.sending {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+  .bar-btn.sending::after {
+    content: '';
+    display: inline-block;
+    width: 12px; height: 12px;
+    margin-left: 6px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+  }
+
+  /* ── Success message ── */
+  .signup-bar.success .signup-form { opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+  .signup-success {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font: 600 15px/1.4 system-ui, sans-serif;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.5s ease 0.2s;
+    padding: 0 20px;
+  }
+  .signup-bar.success .signup-success { opacity: 1; }
+
+  /* ── Success: bar slides back up ── */
+  .signup-bar.success-away {
+    transform: translateY(-100%) !important;
+    transition: transform 0.6s cubic-bezier(0.55, 0, 1, 0.45) 4s;
+  }
+</style>
+
+  <script type="module" crossorigin src="/assets/terrain-CJWI8-sy.js"></script>
+  <script type="module" crossorigin src="/assets/main-C71uLFqQ.js"></script>
+</head>
+<body>
+
+<!-- Signup bar — shown for guest users -->
+<div class="signup-bar" id="guestSignupBar">
+  <p class="signup-label">Get a message in a bottle when it's ready:</p>
+  <form class="signup-form" id="signupForm">
+    <input class="signup-input" id="emailInput" type="email" placeholder="your@email.com" required autocomplete="email">
+    <span class="wish-btn-wrap" id="wishWrap">
+      <button class="bar-btn wish-toggle" id="wishToggle" type="button">Add a wish</button>
+      <input class="wish-input" id="wishInput" type="text" placeholder="I wish I could..." maxlength="200" autocomplete="off">
+      <div class="wish-dropdown" id="wishDropdown">
+        <div class="wish-dropdown-item">🏠 Build a treehouse</div>
+        <div class="wish-dropdown-item">🐬 Swim with dolphins</div>
+        <div class="wish-dropdown-item">💎 Find buried treasure</div>
+        <div class="wish-dropdown-item">🏝️ Live on this island forever</div>
+        <div class="wish-dropdown-item">🦜 Tame a parrot</div>
+        <div class="wish-dropdown-item">🌊 Surf a tsunami</div>
+        <div class="wish-dropdown-item">🦀 Befriend a coconut crab</div>
+        <div class="wish-dropdown-item">🧜‍♀️ Make love to mermaids</div>
+      </div>
+    </span>
+    <span class="bug-btn-wrap" id="bugWrap">
+      <button class="bar-btn bug-toggle" id="bugToggle" type="button">Report a bug</button>
+      <input class="bug-input" id="bugInput" type="text" placeholder="Describe the bug..." maxlength="300" autocomplete="off">
+    </span>
+    <span class="bar-divider"></span>
+    <button class="bar-btn" id="sendBtn" type="submit">Send ✨</button>
+  </form>
+  <div class="signup-success" id="successMessage"></div>
+  <div id="formMessage"></div>
+</div>
+
+<div id="wakeOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;pointer-events:none;transition:opacity 5s ease-out;opacity:1;"></div>
+
+<!-- Dev UI container — hidden in gameplay mode, shown in dev mode -->
+<div id="devUI" style="display:none;">
+
+<!-- Build mode panel — terrain painting toolbar -->
+<div id="buildPanel" style="display:none; position:fixed; bottom:max(20px,env(safe-area-inset-bottom,20px)); left:50%; transform:translateX(-50%); z-index:100; flex-direction:column; gap:8px; align-items:center; background:rgba(0,0,0,0.4); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); padding:14px 20px; border-radius:24px; border:1px solid rgba(255,255,255,0.15); max-width:95vw;">
+</div>
+
+<!-- Cloud toggle / camera / weather / DNC controls -->
+<div class="cloud-toggle" id="cloudToggle">
+  <button class="cam-arrow" id="btnRotLeft" title="Press Q">◀</button>
+  <button id="btnTopDown" title="Press C" style="display:inline-flex; align-items:center; gap:4px;">⬇ <span id="camLabel">E</span></button>
+  <button class="cam-arrow" id="btnRotRight" title="Press E">▶</button>
+  <span class="cam-divider"></span>
+  <button id="btnBuild" title="Press B" style="min-width:56px;font-weight:bold;">🏗️ Build</button>
+  <span class="cam-divider"></span>
+  <select id="weatherSelect" style="
+    padding: 4px 8px;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
+    background: rgba(0,0,0,0.3);
+    color: #fff;
+    font: 600 11px/1 system-ui, sans-serif;
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+  ">
+    <option value="auto" style="background:#1a1a2e;color:#fff">🌤️ Weather: Auto</option>
+    <option value="0" style="background:#1a1a2e;color:#fff">☀️ Clear</option>
+    <option value="1" style="background:#1a1a2e;color:#fff">☁️ Cloudy</option>
+    <option value="2" style="background:#1a1a2e;color:#fff">🌫️ Mist</option>
+    <option value="3" style="background:#1a1a2e;color:#fff">🌧️ Rain</option>
+  </select>
+  <select id="moonPhaseSelect" style="
+    padding: 4px 8px;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
+    background: rgba(0,0,0,0.3);
+    color: #fff;
+    font: 600 11px/1 system-ui, sans-serif;
+    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+  ">
+    <option value="auto" style="background:#1a1a2e;color:#fff">🌙 Moon: Auto</option>
+    <option value="0" style="background:#1a1a2e;color:#fff">🌑 New Moon</option>
+    <option value="1" style="background:#1a1a2e;color:#fff">🌒 Waxing Crescent</option>
+    <option value="2" style="background:#1a1a2e;color:#fff">🌓 First Quarter</option>
+    <option value="3" style="background:#1a1a2e;color:#fff">🌔 Waxing Gibbous</option>
+    <option value="4" style="background:#1a1a2e;color:#fff">🌕 Full Moon</option>
+    <option value="5" style="background:#1a1a2e;color:#fff">🌖 Waning Gibbous</option>
+    <option value="6" style="background:#1a1a2e;color:#fff">🌗 Last Quarter</option>
+    <option value="7" style="background:#1a1a2e;color:#fff">🌘 Waning Crescent</option>
+  </select>
+  <span class="cam-divider"></span>
+  <div id="dncPanel" style="
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-radius: 20px;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    vertical-align: middle;
+  ">
+    <span id="dncPhaseLabel" style="
+      color: #fff;
+      font: 700 13px/1 system-ui, sans-serif;
+      min-width: 50px;
+      text-align: center;
+    ">Dawn</span>
+    <input type="range" id="dncSlider" min="0" max="600" value="50" step="1" style="
+      width: 280px;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: linear-gradient(to right,
+        rgb(170,95,75) 0%, rgb(240,175,120) 25%,
+        rgb(152,214,244) 25%, rgb(80,168,224) 37.5%, rgb(152,214,244) 50%,
+        rgb(245,155,70) 50%, rgb(200,80,40) 62.5%, rgb(16,30,58) 75%,
+        rgb(8,14,38) 75%, rgb(8,14,38) 93%, rgb(170,95,75) 100%);
+      border-radius: 3px;
+      outline: none;
+      cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    ">
+    <select id="dncSelect" style="
+      padding: 4px 8px;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 12px;
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font: 600 11px/1 system-ui, sans-serif;
+      cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+    ">
+      <option value="auto" style="background:#1a1a2e;color:#fff">🔄 Auto</option>
+      <option value="0" style="background:#1a1a2e;color:#fff">🌅 Dawn</option>
+      <option value="1" style="background:#1a1a2e;color:#fff">☀️ Noon</option>
+      <option value="2" style="background:#1a1a2e;color:#fff">🌇 Dusk</option>
+      <option value="3" style="background:#1a1a2e;color:#fff">🌙 Night</option>
+    </select>
+    <button id="dncTimeLapse" style="
+      padding: 4px 8px;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 12px;
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font: 600 11px/1 system-ui, sans-serif;
+      cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+      outline: none;
+      white-space: nowrap;
+    ">⏩ Time Lapse</button>
+    <span id="dncTimeLabel" style="
+      color: rgba(255,255,255,0.6);
+      font: 500 11px/1 monospace;
+      min-width: 36px;
+    ">08:00</span>
+  </div>
+  <span class="cam-divider"></span>
+  <span id="seedLabel" style="
+    color: rgba(255,255,255,0.6);
+    font: 500 11px/1 monospace;
+    min-width: 56px;
+  ">Seed: 42</span>
+  <button id="btnNewSeed" style="min-width:56px;">🎲 New Seed</button>
+</div>
+
+<!-- Right-side calibration panel stack -->
+<div id="calibPanelStack" style="
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom, 20px));
+  right: max(20px, env(safe-area-inset-right, 20px));
+  z-index: 200;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  pointer-events: none;
+">
+
+<!-- Calibrations accordion header -->
+<div id="calibHeader" style="
+  pointer-events: auto;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 10px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font: 700 13px/1 system-ui, sans-serif;
+  cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
+">
+  <span>&#128295; Calibrations</span>
+  <span id="calibToggle" style="font-size:16px;transition:transform 0.2s;">&#9654;</span>
+</div>
+
+<!-- Collapsible body containing all 5 calibration panels -->
+<div id="calibBody" style="display:none;flex-direction:column-reverse;gap:8px;">
+
+<!-- Viewport Calibration (standalone) -->
+<div id="vpCalibDebug" style="
+  pointer-events: auto;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font: 500 12px/1.6 monospace;
+  min-width: 260px;
+  user-select: none;
+">
+  <div id="vpCalibHeader" style="font:700 13px/1 system-ui,sans-serif;opacity:0.8;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <span>&#128438; Viewport Calibration</span>
+    <span id="vpCalibToggle" style="font-size:16px;transition:transform 0.2s;">&#9654;</span>
+  </div>
+  <div id="vpCalibBody" style="margin-top:10px;display:none;flex-direction:column;gap:8px;">
+
+    <!-- Mobile -->
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button id="vpToggle_mobile" style="width:20px;height:20px;border:2px solid #ff3333;border-radius:4px;background:transparent;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Toggle mobile viewport">
+        <span style="color:#ff3333;font-size:12px;line-height:1;display:none;">&#10003;</span>
+      </button>
+      <select id="vpDevSel_mobile" style="flex:1;padding:3px 6px;border:1px solid rgba(255,51,51,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+        <option value="iphone15">iPhone 15 / 16</option>
+        <option value="iphone15pm">iPhone 15 Pro Max</option>
+        <option value="iphoneSE">iPhone SE</option>
+        <option value="pixel8">Pixel 8</option>
+        <option value="galaxyS24">Galaxy S24</option>
+        <option value="galaxyS24u">Galaxy S24 Ultra</option>
+      </select>
+    </div>
+
+    <!-- Tablet -->
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button id="vpToggle_tablet" style="width:20px;height:20px;border:2px solid #33ff66;border-radius:4px;background:transparent;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Toggle tablet viewport">
+        <span style="color:#33ff66;font-size:12px;line-height:1;display:none;">&#10003;</span>
+      </button>
+      <select id="vpDevSel_tablet" style="flex:1;padding:3px 6px;border:1px solid rgba(51,255,102,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+        <option value="ipad109">iPad 10.9"</option>
+        <option value="ipadAir13">iPad Air 13"</option>
+        <option value="ipadPro11">iPad Pro 11"</option>
+        <option value="ipadPro129">iPad Pro 12.9"</option>
+        <option value="galaxyTabS9">Galaxy Tab S9</option>
+        <option value="ipadMini">iPad Mini</option>
+      </select>
+    </div>
+
+    <!-- Desktop -->
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button id="vpToggle_desktop" style="width:20px;height:20px;border:2px solid #3388ff;border-radius:4px;background:transparent;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Toggle desktop viewport">
+        <span style="color:#3388ff;font-size:12px;line-height:1;display:none;">&#10003;</span>
+      </button>
+      <select id="vpDevSel_desktop" style="flex:1;padding:3px 6px;border:1px solid rgba(51,136,255,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+        <option value="fhd">1920 x 1080 (FHD)</option>
+        <option value="qhd">2560 x 1440 (QHD)</option>
+        <option value="uwqhd">3440 x 1440 (UW)</option>
+        <option value="macbook14">MacBook Pro 14"</option>
+        <option value="macbook16">MacBook Pro 16"</option>
+        <option value="4k">3840 x 2160 (4K)</option>
+      </select>
+    </div>
+
+  </div>
+</div>
+
+<!-- Sun Arc Calibration -->
+<div id="sunArcDebug" style="
+  pointer-events: auto;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font: 500 12px/1.6 monospace;
+  min-width: 300px;
+  max-height: 70vh;
+  overflow-y: auto;
+  user-select: none;
+">
+  <div id="sunArcHeader" style="font:700 13px/1 system-ui,sans-serif;opacity:0.8;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <span>&#9728; SunArc Calibration</span>
+    <span style="display:flex;align-items:center;gap:6px;">
+      <button id="sunArcHide" style="padding:2px 8px;border:1px solid rgba(255,255,255,0.3);border-radius:10px;background:rgba(255,255,255,0.15);color:#fff;font:600 10px/1 system-ui,sans-serif;cursor:pointer;white-space:nowrap;">&#128065; Hide</button>
+      <span id="sunArcToggle" style="font-size:16px;transition:transform 0.2s;">&#9654;</span>
+    </span>
+  </div>
+  <div id="sunArcBody" style="margin-top:10px;display:none;">
+
+    <!-- Category tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:10px;">
+      <button id="sacTab_mobile" style="flex:1;padding:5px 0;border:1px solid rgba(255,51,51,0.6);border-radius:8px;background:transparent;color:#ff3333;font:600 11px/1 system-ui,sans-serif;cursor:pointer;">Mobile</button>
+      <button id="sacTab_tablet" style="flex:1;padding:5px 0;border:1px solid rgba(51,255,102,0.6);border-radius:8px;background:transparent;color:#33ff66;font:600 11px/1 system-ui,sans-serif;cursor:pointer;">Tablet</button>
+      <button id="sacTab_desktop" style="flex:1;padding:5px 0;border:1px solid rgba(51,136,255,0.6);border-radius:8px;background:transparent;color:#3388ff;font:600 11px/1 system-ui,sans-serif;cursor:pointer;">Desktop</button>
+    </div>
+
+    <!-- Arc sliders (edit whichever category tab is active) -->
+    <label style="font-size:11px;">Azimuth Start (rise): <span id="sacAzS">-10</span>&deg;
+      <input type="range" id="slAzStart" min="-40" max="40" value="-10" step="0.5" style="width:100%;">
+    </label>
+    <label style="font-size:11px;">Azimuth End (set): <span id="sacAzE">9.5</span>&deg;
+      <input type="range" id="slAzEnd" min="-40" max="40" value="9.5" step="0.5" style="width:100%;">
+    </label>
+    <label style="font-size:11px;">Elevation Peak: <span id="sacElP">32</span>&deg;
+      <input type="range" id="slElevPeak" min="20" max="120" value="32" step="1" style="width:100%;">
+    </label>
+
+    <!-- Viewport — shows only the active tab's device dropdown -->
+    <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.15);padding-top:8px;">
+      <div style="font:600 11px/1 system-ui,sans-serif;opacity:0.6;margin-bottom:6px;">Viewport</div>
+
+      <div id="vpSel_mobile" style="display:flex;align-items:center;gap:6px;">
+        <span style="color:#ff3333;font-size:14px;">&#9632;</span>
+        <select id="devSel_mobile" style="flex:1;padding:3px 6px;border:1px solid rgba(255,51,51,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+          <option value="iphone15">iPhone 15 / 16</option>
+          <option value="iphone15pm">iPhone 15 Pro Max</option>
+          <option value="iphoneSE">iPhone SE</option>
+          <option value="pixel8">Pixel 8</option>
+          <option value="galaxyS24">Galaxy S24</option>
+          <option value="galaxyS24u">Galaxy S24 Ultra</option>
+        </select>
+      </div>
+
+      <div id="vpSel_tablet" style="display:none;align-items:center;gap:6px;">
+        <span style="color:#33ff66;font-size:14px;">&#9632;</span>
+        <select id="devSel_tablet" style="flex:1;padding:3px 6px;border:1px solid rgba(51,255,102,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+          <option value="ipad109">iPad 10.9"</option>
+          <option value="ipadAir13">iPad Air 13"</option>
+          <option value="ipadPro11">iPad Pro 11"</option>
+          <option value="ipadPro129">iPad Pro 12.9"</option>
+          <option value="galaxyTabS9">Galaxy Tab S9</option>
+          <option value="ipadMini">iPad Mini</option>
+        </select>
+      </div>
+
+      <div id="vpSel_desktop" style="display:none;align-items:center;gap:6px;">
+        <span style="color:#3388ff;font-size:14px;">&#9632;</span>
+        <select id="devSel_desktop" style="flex:1;padding:3px 6px;border:1px solid rgba(51,136,255,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+          <option value="fhd">1920 x 1080 (FHD)</option>
+          <option value="qhd">2560 x 1440 (QHD)</option>
+          <option value="uwqhd">3440 x 1440 (UW)</option>
+          <option value="macbook14">MacBook Pro 14"</option>
+          <option value="macbook16">MacBook Pro 16"</option>
+          <option value="4k">3840 x 2160 (4K)</option>
+        </select>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Moon Arc Calibration -->
+<div id="moonArcDebug" style="
+  pointer-events: auto;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font: 500 12px/1.6 monospace;
+  min-width: 300px;
+  user-select: none;
+">
+  <div id="moonArcHeader" style="font:700 13px/1 system-ui,sans-serif;opacity:0.8;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <span>&#127769; MoonArc Calibration</span>
+    <span style="display:flex;align-items:center;gap:6px;">
+      <button id="moonArcHide" style="padding:2px 8px;border:1px solid rgba(255,255,255,0.3);border-radius:10px;background:rgba(255,255,255,0.15);color:#fff;font:600 10px/1 system-ui,sans-serif;cursor:pointer;white-space:nowrap;">&#128065; Hide</button>
+      <span id="moonArcToggle" style="font-size:16px;transition:transform 0.2s;">&#9654;</span>
+    </span>
+  </div>
+  <div id="moonArcBody" style="margin-top:10px;display:none;">
+
+    <!-- Category tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:10px;">
+      <button id="macTab_mobile" style="flex:1;padding:5px 0;border:1px solid rgba(255,51,51,0.6);border-radius:8px;background:transparent;color:#ff3333;font:600 11px/1 system-ui,sans-serif;cursor:pointer;">Mobile</button>
+      <button id="macTab_tablet" style="flex:1;padding:5px 0;border:1px solid rgba(51,255,102,0.6);border-radius:8px;background:transparent;color:#33ff66;font:600 11px/1 system-ui,sans-serif;cursor:pointer;">Tablet</button>
+      <button id="macTab_desktop" style="flex:1;padding:5px 0;border:1px solid rgba(51,136,255,0.6);border-radius:8px;background:transparent;color:#3388ff;font:600 11px/1 system-ui,sans-serif;cursor:pointer;">Desktop</button>
+    </div>
+
+    <!-- Moon arc sliders -->
+    <label style="font-size:11px;">Azimuth Center: <span id="macAzC">0</span>&deg;
+      <input type="range" id="slMoonAzCenter" min="-40" max="40" value="0" step="0.5" style="width:100%;">
+    </label>
+    <label style="font-size:11px;">Azimuth Drift: <span id="macAzD">12</span>&deg;
+      <input type="range" id="slMoonAzDrift" min="0" max="40" value="12" step="0.5" style="width:100%;">
+    </label>
+    <label style="font-size:11px;">Elevation Base: <span id="macElB">28</span>&deg;
+      <input type="range" id="slMoonElevBase" min="5" max="70" value="28" step="1" style="width:100%;">
+    </label>
+    <label style="font-size:11px;">Elevation Arc: <span id="macElA">4</span>&deg;
+      <input type="range" id="slMoonElevArc" min="0" max="20" value="4" step="0.5" style="width:100%;">
+    </label>
+
+    <!-- Viewport — shows only the active tab's device dropdown -->
+    <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.15);padding-top:8px;">
+      <div style="font:600 11px/1 system-ui,sans-serif;opacity:0.6;margin-bottom:6px;">Viewport</div>
+
+      <div id="macVpSel_mobile" style="display:flex;align-items:center;gap:6px;">
+        <span style="color:#ff3333;font-size:14px;">&#9632;</span>
+        <select id="macDevSel_mobile" style="flex:1;padding:3px 6px;border:1px solid rgba(255,51,51,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+          <option value="iphone15">iPhone 15 / 16</option>
+          <option value="iphone15pm">iPhone 15 Pro Max</option>
+          <option value="iphoneSE">iPhone SE</option>
+          <option value="pixel8">Pixel 8</option>
+          <option value="galaxyS24">Galaxy S24</option>
+          <option value="galaxyS24u">Galaxy S24 Ultra</option>
+        </select>
+      </div>
+
+      <div id="macVpSel_tablet" style="display:none;align-items:center;gap:6px;">
+        <span style="color:#33ff66;font-size:14px;">&#9632;</span>
+        <select id="macDevSel_tablet" style="flex:1;padding:3px 6px;border:1px solid rgba(51,255,102,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+          <option value="ipad109">iPad 10.9"</option>
+          <option value="ipadAir13">iPad Air 13"</option>
+          <option value="ipadPro11">iPad Pro 11"</option>
+          <option value="ipadPro129">iPad Pro 12.9"</option>
+          <option value="galaxyTabS9">Galaxy Tab S9</option>
+          <option value="ipadMini">iPad Mini</option>
+        </select>
+      </div>
+
+      <div id="macVpSel_desktop" style="display:none;align-items:center;gap:6px;">
+        <span style="color:#3388ff;font-size:14px;">&#9632;</span>
+        <select id="macDevSel_desktop" style="flex:1;padding:3px 6px;border:1px solid rgba(51,136,255,0.4);border-radius:6px;background:rgba(0,0,0,0.3);color:#fff;font:500 10px/1 system-ui,sans-serif;cursor:pointer;">
+          <option value="fhd">1920 x 1080 (FHD)</option>
+          <option value="qhd">2560 x 1440 (QHD)</option>
+          <option value="uwqhd">3440 x 1440 (UW)</option>
+          <option value="macbook14">MacBook Pro 14"</option>
+          <option value="macbook16">MacBook Pro 16"</option>
+          <option value="4k">3840 x 2160 (4K)</option>
+        </select>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Caustics Calibration -->
+<div id="causticDebug" style="
+  pointer-events: auto;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font: 500 12px/1.6 monospace;
+  min-width: 280px;
+  user-select: none;
+">
+  <div id="causticDbgHeader" style="font:700 13px/1 system-ui,sans-serif;opacity:0.8;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <span>🌊 Caustics Calibration</span>
+    <span id="causticDbgToggle" style="font-size:16px;transition:transform 0.2s;">▶</span>
+  </div>
+  <div id="causticDbgBody" style="margin-top:10px;display:none;">
+    <label>Caustic Scale: <span id="causticScaleVal">3.0</span>
+      <input type="range" id="causticScaleRange" min="0.5" max="4.0" step="0.1" value="3.0" style="width:100%;">
+    </label>
+  </div>
+</div>
+
+<!-- Camera Debug Sliders -->
+<div id="camDebug" style="
+  pointer-events: auto;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font: 500 12px/1.6 monospace;
+  min-width: 280px;
+  user-select: none;
+">
+  <div id="camDbgHeader" style="font:700 13px/1 system-ui,sans-serif;opacity:0.8;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <span>📷 Camera Calibration</span>
+    <span id="camDbgToggle" style="font-size:16px;transition:transform 0.2s;">▶</span>
+  </div>
+  <div id="camDbgBody" style="margin-top:10px;display:none;">
+    <label>Camera height: <span id="camDbgZoomVal">0.93</span>
+      <input type="range" id="camDbgZoom" min="-0.5" max="2.0" step="0.01" value="0.93" style="width:100%;">
+    </label><br>
+    <label>Camera position: <span id="camDbgPosVal">-18.4, 1.2</span>
+      <input type="range" id="camDbgPosX" min="-200" max="200" step="0.5" value="-18.4" style="width:100%;">
+      <input type="range" id="camDbgPosZ" min="-200" max="200" step="0.5" value="1.2" style="width:49%;margin-top:2px;">
+      <span style="font-size:10px;opacity:0.5;margin-left:4px;">X / Z</span>
+    </label><br>
+    <label>Camera tilt: <span id="camDbgLookYVal">8.5</span>
+      <input type="range" id="camDbgLookY" min="0" max="25" step="0.5" value="8.5" style="width:100%;">
+    </label>
+    <div id="camDbgLive" style="margin-top:8px;font-size:11px;opacity:0.6;"></div>
+  </div>
+</div>
+
+</div><!-- /calibBody -->
+</div><!-- /calibPanelStack -->
+
+</div><!-- /devUI -->
+
+<!-- Gameplay UI container — shown in gameplay mode, hidden in dev mode -->
+<div id="gameUI" style="display:none;"></div>
+
+
+<!-- Top-left button row — mode toggle + dev buttons -->
+<div id="topLeftButtons" style="
+  position:fixed; top:max(20px,env(safe-area-inset-top,20px)); left:max(20px,env(safe-area-inset-left,20px));
+  z-index:100; display:flex; gap:8px; align-items:center;
+">
+<button id="modeToggle" style="
+  padding:8px 16px; border:2px solid rgba(255,255,255,0.6); border-radius:20px;
+  background:rgba(0,0,0,0.3); color:#fff; font:600 13px/1 system-ui,sans-serif;
+  cursor:url('/assets/cursor-Cp-NsyKv.svg') 1 1,pointer !important; backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px); transition:all 0.2s; user-select:none;
+"></button>
+
+<button id="hideDevUI" style="
+  display:none; padding:8px 16px; border:2px solid rgba(255,255,255,0.6); border-radius:20px;
+  background:rgba(0,0,0,0.3); color:#fff; font:600 13px/1 system-ui,sans-serif;
+  cursor:url('/assets/cursor-Cp-NsyKv.svg') 1 1,pointer !important; backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px); transition:all 0.2s; user-select:none;
+">&#128065; Hide UI</button>
+
+<button id="playerToggle" style="
+  display:none; padding:8px 16px; border:2px solid rgba(255,255,255,0.6); border-radius:20px;
+  background:rgba(0,0,0,0.3); color:#fff; font:600 13px/1 system-ui,sans-serif;
+  cursor:url('/assets/cursor-Cp-NsyKv.svg') 1 1,pointer !important; backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px); transition:all 0.2s; user-select:none;
+">&#128100; Player</button>
+</div>
+
+<!-- Background Music -->
+<audio id="bgMusic" loop preload="auto">
+  <source src="/assets/ambient-D9Dzqtft.mp3" type="audio/mpeg">
+</audio>
+
+<!-- Ambient Audio (above/below water) -->
+<audio id="ambAbove" loop preload="auto">
+  <source src="/assets/ambient-above-DV28blcY.mp3" type="audio/mpeg">
+</audio>
+<audio id="ambBelow" loop preload="auto">
+  <source src="/assets/ambient-below-CVfZ0yyv.mp3" type="audio/mpeg">
+</audio>
+
+<!-- Music UI -->
+<div class="music-ui" id="musicUI">
+  <button class="music-btn" id="playBtn" title="Play/Pause" aria-label="Toggle music">
+    <span class="eq-bars">
+      <span class="eq-bar" style="height:4px"></span>
+      <span class="eq-bar" style="height:4px"></span>
+      <span class="eq-bar" style="height:4px"></span>
+      <span class="eq-bar" style="height:4px"></span>
+    </span>
+    Music
+  </button>
+  <button class="music-btn" id="ambientBtn" title="Ambient Sound" aria-label="Toggle ambient audio">
+    <span class="eq-bars">
+      <span class="eq-bar" style="height:4px"></span>
+      <span class="eq-bar" style="height:4px"></span>
+      <span class="eq-bar" style="height:4px"></span>
+      <span class="eq-bar" style="height:4px"></span>
+    </span>
+    Ambient
+  </button>
+</div>
+
+<script>
+// ============================================================
+// MUSIC PLAYER — starts OFF, click button to toggle
+// ============================================================
+const audio = document.getElementById('bgMusic');
+const playBtn = document.getElementById('playBtn');
+audio.volume = 0.6;
+audio.loop = true;
+let playing = false;
+let toggling = false;
+
+function toggle() {
+  if (toggling) return;
+  toggling = true;
+  setTimeout(() => toggling = false, 300);
+  
+  if (!playing) {
+    audio.play().then(() => {
+      playing = true;
+      playBtn.classList.add('playing');
+    }).catch(() => {
+      setTimeout(() => {
+        audio.play().then(() => {
+          playing = true;
+          playBtn.classList.add('playing');
+        }).catch(() => {});
+      }, 100);
+    });
+  } else {
+    playing = false;
+    playBtn.classList.remove('playing');
+    audio.pause();
+  }
+}
+
+// Listen to multiple event types for maximum compatibility
+playBtn.addEventListener('pointerdown', toggle);
+playBtn.addEventListener('click', (e) => { e.preventDefault(); toggle(); });
+playBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggle(); });
+
+// Auto-start music on first user interaction (browsers require gesture)
+// In dev mode, music only starts via the music button — no auto-play on random clicks
+const _devMode = new URLSearchParams(window.location.search).get('dev') === '1'
+  || sessionStorage.getItem('sipDev') === '1';
+if (!_devMode) {
+  function autoStartMusic() {
+    if (!playing) {
+      audio.play().then(() => {
+        playing = true;
+        playBtn.classList.add('playing');
+      }).catch(() => {});
+    }
+    window.removeEventListener('pointerdown', autoStartMusic);
+    window.removeEventListener('keydown', autoStartMusic);
+    window.removeEventListener('touchstart', autoStartMusic);
+  }
+  window.addEventListener('pointerdown', autoStartMusic, { once: false });
+  window.addEventListener('keydown', autoStartMusic, { once: false });
+  window.addEventListener('touchstart', autoStartMusic, { once: false });
+}
+
+// ============================================================
+// AMBIENT AUDIO — above/below water crossfade
+// ============================================================
+const ambAbove = document.getElementById('ambAbove');
+const ambBelow = document.getElementById('ambBelow');
+const ambientBtn = document.getElementById('ambientBtn');
+ambAbove.volume = 0;
+ambBelow.volume = 0;
+let ambientPlaying = false;
+let ambientToggling = false;
+let ambAboveVol = 0;
+let ambBelowVol = 0;
+let ambRafId = null;
+
+function ambientCrossfadeLoop() {
+  if (!ambientPlaying) return;
+  const underwater = window._isPlayerUnderwater ? window._isPlayerUnderwater() : false;
+  const aboveTarget = underwater ? 0.0 : 0.35;
+  const belowTarget = underwater ? 0.35 : 0.0;
+  ambAboveVol += (aboveTarget - ambAboveVol) * 0.05;
+  ambBelowVol += (belowTarget - ambBelowVol) * 0.05;
+  // Snap to target when very close to avoid endless tiny lerps
+  if (Math.abs(ambAboveVol - aboveTarget) < 0.002) ambAboveVol = aboveTarget;
+  if (Math.abs(ambBelowVol - belowTarget) < 0.002) ambBelowVol = belowTarget;
+  ambAbove.volume = ambAboveVol;
+  ambBelow.volume = ambBelowVol;
+  ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
+}
+
+function toggleAmbient() {
+  if (ambientToggling) return;
+  ambientToggling = true;
+  setTimeout(() => ambientToggling = false, 300);
+
+  if (!ambientPlaying) {
+    ambAboveVol = 0;
+    ambBelowVol = 0;
+    ambAbove.volume = 0;
+    ambBelow.volume = 0;
+    ambAbove.play().catch(() => {});
+    ambBelow.play().catch(() => {});
+    ambientPlaying = true;
+    ambientBtn.classList.add('playing');
+    ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
+  } else {
+    ambientPlaying = false;
+    ambientBtn.classList.remove('playing');
+    if (ambRafId) { cancelAnimationFrame(ambRafId); ambRafId = null; }
+    ambAbove.pause();
+    ambBelow.pause();
+    ambAboveVol = 0;
+    ambBelowVol = 0;
+    ambAbove.volume = 0;
+    ambBelow.volume = 0;
+  }
+}
+
+ambientBtn.addEventListener('pointerdown', toggleAmbient);
+ambientBtn.addEventListener('click', (e) => { e.preventDefault(); toggleAmbient(); });
+ambientBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggleAmbient(); });
+
+// Auto-start ambient on first user interaction in play mode
+if (!_devMode) {
+  function autoStartAmbient() {
+    if (!ambientPlaying) {
+      ambAboveVol = 0;
+      ambBelowVol = 0;
+      ambAbove.volume = 0;
+      ambBelow.volume = 0;
+      ambAbove.play().then(() => {
+        ambBelow.play().catch(() => {});
+        ambientPlaying = true;
+        ambientBtn.classList.add('playing');
+        ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
+      }).catch(() => {});
+    }
+    window.removeEventListener('pointerdown', autoStartAmbient);
+    window.removeEventListener('keydown', autoStartAmbient);
+    window.removeEventListener('touchstart', autoStartAmbient);
+  }
+  window.addEventListener('pointerdown', autoStartAmbient, { once: false });
+  window.addEventListener('keydown', autoStartAmbient, { once: false });
+  window.addEventListener('touchstart', autoStartAmbient, { once: false });
+}
+
+// Caustics calibration panel — collapse toggle
+document.getElementById('causticDbgHeader').addEventListener('click', () => {
+  const body = document.getElementById('causticDbgBody');
+  const toggle = document.getElementById('causticDbgToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  toggle.textContent = isOpen ? '▶' : '▼';
+});
+
+// Camera debug panel — collapse toggle
+document.getElementById('camDbgHeader').addEventListener('click', () => {
+  const body = document.getElementById('camDbgBody');
+  const toggle = document.getElementById('camDbgToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  toggle.textContent = isOpen ? '▶' : '▼';
+});
+
+// Calibrations accordion — collapse toggle
+document.getElementById('calibHeader').addEventListener('click', () => {
+  const body = document.getElementById('calibBody');
+  const tog = document.getElementById('calibToggle');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'flex';
+  tog.textContent = open ? '\u25B6' : '\u25BC';
+});
+
+// Camera debug sliders — two-way sync
+function initCamSliders() {
+  const zoomSlider = document.getElementById('camDbgZoom');
+  const posXSlider = document.getElementById('camDbgPosX');
+  const posZSlider = document.getElementById('camDbgPosZ');
+  const lookYSlider = document.getElementById('camDbgLookY');
+  const zoomVal = document.getElementById('camDbgZoomVal');
+  const posVal = document.getElementById('camDbgPosVal');
+  const lookYVal = document.getElementById('camDbgLookYVal');
+  const liveDisplay = document.getElementById('camDbgLive');
+
+  if (!zoomSlider || !window._camDbg) {
+    setTimeout(initCamSliders, 200);
+    return;
+  }
+
+  let zoomDrag = false, posXDrag = false, posZDrag = false, lookYDrag = false;
+
+  function trackDrag(el, setFn) {
+    let dragging = { v: false };
+    el.addEventListener('mousedown', () => dragging.v = true);
+    el.addEventListener('mouseup', () => dragging.v = false);
+    el.addEventListener('touchstart', () => dragging.v = true);
+    el.addEventListener('touchend', () => dragging.v = false);
+    return dragging;
+  }
+  const zDrag = trackDrag(zoomSlider);
+  const pxDrag = trackDrag(posXSlider);
+  const pzDrag = trackDrag(posZSlider);
+  const lyDrag = trackDrag(lookYSlider);
+
+  // Slider → camera
+  zoomSlider.addEventListener('input', (e) => {
+    window._camDbg.setCamOff(parseFloat(e.target.value));
+  });
+  posXSlider.addEventListener('input', (e) => {
+    window._camDbg.setPanX(parseFloat(e.target.value));
+  });
+  posZSlider.addEventListener('input', (e) => {
+    window._camDbg.setPanZ(parseFloat(e.target.value));
+  });
+  lookYSlider.addEventListener('input', (e) => {
+    window._camDbg.setOrbitLookY(parseFloat(e.target.value));
+  });
+
+  // Camera → sliders (live sync every frame)
+  function syncLoop() {
+    requestAnimationFrame(syncLoop);
+    const co = window._camDbg.getCamOff();
+    const px = window._camDbg.getPanX();
+    const pz = window._camDbg.getPanZ();
+    const ly = window._camDbg.getOrbitLookY();
+    const pos = window._camDbg.getCamPos();
+
+    if (!zDrag.v) zoomSlider.value = co;
+    zoomVal.textContent = co.toFixed(2);
+
+    if (!pxDrag.v) posXSlider.value = px;
+    if (!pzDrag.v) posZSlider.value = pz;
+    posVal.textContent = px.toFixed(1) + ', ' + pz.toFixed(1);
+
+    if (!lyDrag.v) lookYSlider.value = ly;
+    lookYVal.textContent = ly.toFixed(1);
+
+    liveDisplay.textContent = 'cam: ' + pos.x + ', ' + pos.y + ', ' + pos.z;
+  }
+  syncLoop();
+}
+initCamSliders();
+
+// Wake-up fade: white → transparent
+setTimeout(() => {
+  const ov = document.getElementById('wakeOverlay');
+  if (ov) {
+    ov.style.opacity = '0';
+    ov.addEventListener('transitionend', () => ov.remove());
+  }
+}, 100);
+
+// --- Mode toggle button (temporary) ---
+const modeBtn = document.getElementById('modeToggle');
+const isGuest = new URLSearchParams(window.location.search).get('guest') === '1';
+
+// Guest refresh → bounce back to landing page
+if (isGuest) {
+  const nav = performance.getEntriesByType('navigation')[0];
+  if (nav && nav.type === 'reload') {
+    location.replace('/');
+  }
+  sessionStorage.removeItem('sipDev');
+}
+const devOn = sessionStorage.getItem('sipDev') === '1';
+if (isGuest) { modeBtn.style.display = 'none'; }
+modeBtn.textContent = devOn ? '\uD83D\uDD27 Dev' : '\uD83C\uDFAE Play';
+modeBtn.addEventListener('click', () => {
+  if (sessionStorage.getItem('sipDev') === '1') {
+    sessionStorage.removeItem('sipDev');
+    // Strip ?dev=1 from URL so mode.js doesn't re-set it on reload
+    const url = new URL(location.href);
+    url.searchParams.delete('dev');
+    location.href = url.toString();
+  } else {
+    sessionStorage.setItem('sipDev', '1');
+    location.reload();
+  }
+});
+
+// --- Hide Dev UI button ---
+const hideUIBtn = document.getElementById('hideDevUI');
+if (devOn) {
+  hideUIBtn.style.display = 'block';
+  hideUIBtn.addEventListener('click', () => {
+    const devUI = document.getElementById('devUI');
+    const causticSlider = document.getElementById('causticSlider');
+    if (!devUI) return;
+    const isHidden = devUI.style.visibility === 'hidden';
+    devUI.style.visibility = isHidden ? 'visible' : 'hidden';
+    if (causticSlider) causticSlider.style.visibility = isHidden ? 'visible' : 'hidden';
+    hideUIBtn.textContent = isHidden ? '\uD83D\uDC41 Hide UI' : '\uD83D\uDC41 Show UI';
+    hideUIBtn.style.opacity = isHidden ? '1' : '0.5';
+  });
+}
+
+// --- Player toggle button (dev mode only) ---
+const playerToggleBtn = document.getElementById('playerToggle');
+if (devOn) {
+  playerToggleBtn.style.display = 'block';
+  window._devPlayerOn = true;
+  playerToggleBtn.style.opacity = '1';
+  playerToggleBtn.textContent = '\uD83D\uDC64 Player ON';
+  playerToggleBtn.addEventListener('click', () => {
+    window._devPlayerOn = !window._devPlayerOn;
+    if (window._setPlayerVisible) window._setPlayerVisible(window._devPlayerOn);
+    playerToggleBtn.style.opacity = window._devPlayerOn ? '1' : '0.5';
+    playerToggleBtn.textContent = window._devPlayerOn ? '\uD83D\uDC64 Player ON' : '\uD83D\uDC64 Player';
+  });
+}
+
+// --- Task completion notification (beep + toast) ---
+window._notify = function(msg) {
+  // Audio beep using Web Audio API (short pleasant chime)
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);       // A5
+    osc.frequency.setValueAtTime(1108.73, ctx.currentTime + 0.08); // C#6
+    osc.frequency.setValueAtTime(1318.51, ctx.currentTime + 0.16); // E6
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch(e) {}
+  // Visual toast
+  let toast = document.getElementById('taskToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'taskToast';
+    toast.style.cssText = `
+      position:fixed; top:20px; left:50%; transform:translateX(-50%);
+      background:rgba(76,175,80,0.95); color:#fff; padding:12px 24px;
+      border-radius:12px; font:600 14px/1 system-ui,sans-serif;
+      z-index:9999; pointer-events:none; opacity:0;
+      transition:opacity 0.3s, transform 0.3s;
+      backdrop-filter:blur(8px); box-shadow:0 4px 20px rgba(0,0,0,0.3);
+    `;
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg || 'Task complete';
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-10px)';
+  }, 3000);
+};
+
+// --- Guest signup bar ---
+if (isGuest) {
+  const bar       = document.getElementById('guestSignupBar');
+  const form      = document.getElementById('signupForm');
+  const emailIn   = document.getElementById('emailInput');
+  const wishWrap  = document.getElementById('wishWrap');
+  const wishToggle = document.getElementById('wishToggle');
+  const wishInput = document.getElementById('wishInput');
+  const sendBtn   = document.getElementById('sendBtn');
+  const msgEl     = document.getElementById('formMessage');
+
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw97pWaHISz1VdJsQAp6zlLDM1tWnsxQkNsPblod1zah-oHk-c9yMsbsy8PwZ3ppcEITQ/exec';
+
+  // Slide bar in from top (short delay so browser paints the off-screen position first)
+  bar.classList.add('visible');
+  setTimeout(() => bar.classList.add('slid-in'), 50);
+
+  // --- "Add a Wish" → morph button into input field ---
+  const wishDropdown = document.getElementById('wishDropdown');
+
+  wishToggle.addEventListener('click', () => {
+    wishWrap.classList.add('expanded');
+    setTimeout(() => {
+      wishInput.focus();
+      wishDropdown.classList.add('open');
+    }, 400);
+  });
+
+  // --- Wish dropdown suggestions ---
+  wishDropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('.wish-dropdown-item');
+    if (!item) return;
+    // Strip the emoji prefix and set as value
+    const text = item.textContent.replace(/^.+?\s/, '');
+    wishInput.value = 'I wish I could ' + text.charAt(0).toLowerCase() + text.slice(1);
+    wishDropdown.classList.remove('open');
+    wishInput.focus();
+  });
+
+  // Close dropdown + collapse back to button when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!wishWrap.contains(e.target)) {
+      wishDropdown.classList.remove('open');
+      if (wishWrap.classList.contains('expanded') && !wishInput.value) {
+        wishWrap.classList.remove('expanded');
+      }
+    }
+  });
+
+  // Re-open dropdown on focus if input is empty
+  wishInput.addEventListener('focus', () => {
+    if (!wishInput.value) wishDropdown.classList.add('open');
+  });
+
+  // Close dropdown when typing
+  wishInput.addEventListener('input', () => {
+    wishDropdown.classList.remove('open');
+  });
+
+  // --- "Report a Bug" → morph button into input field ---
+  const bugWrap   = document.getElementById('bugWrap');
+  const bugToggle = document.getElementById('bugToggle');
+  const bugInput  = document.getElementById('bugInput');
+
+  bugToggle.addEventListener('click', () => {
+    bugWrap.classList.add('expanded');
+    setTimeout(() => {
+      bugInput.focus();
+    }, 400);
+  });
+
+  // Close bug input when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!bugWrap.contains(e.target) && bugWrap.classList.contains('expanded') && !bugInput.value) {
+      bugWrap.classList.remove('expanded');
+    }
+  });
+
+  // --- Send: submit email + optional wish + optional bug ---
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = emailIn.value.trim();
+    if (!email || !email.includes('@') || !email.includes('.')) {
+      emailIn.style.borderColor = '#ff9999';
+      emailIn.setAttribute('placeholder', 'email required');
+      setTimeout(() => {
+        emailIn.style.borderColor = '';
+        emailIn.setAttribute('placeholder', 'your@email.com');
+      }, 2000);
+      return;
+    }
+
+    const wish = wishInput.value.trim() || 'empty';
+    const bug  = bugInput.value.trim() || 'empty';
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Sending';
+    sendBtn.classList.add('sending');
+    msgEl.innerHTML = '';
+
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, wish, bug }),
+      });
+      // Build conditional success message
+      const parts = [];
+      parts.push('We\u2019ve received your interest');
+      if (wish !== 'empty') parts.push('your wish');
+      if (bug !== 'empty') parts.push('your bug report');
+      let msg = parts.length === 1 ? parts[0]
+              : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+      msg += '. Thank you! \uD83C\uDF34';
+
+      const successEl = document.getElementById('successMessage');
+      successEl.textContent = msg;
+      document.querySelector('.signup-label').style.display = 'none';
+      bar.classList.add('success');
+      bar.classList.add('success-away');
+    } catch (err) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send \u2728';
+      sendBtn.classList.remove('sending');
+    }
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bora Bora — System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ocean: #0a1628;
+  --deep: #0d1f3c;
+  --sand: #e8d5a3;
+  --coral: #ff6b5a;
+  --lagoon: #2dd4bf;
+  --sky: #38bdf8;
+  --palm: #22c55e;
+  --shell: #fbbf24;
+  --foam: rgba(255,255,255,0.06);
+  --text: #c8d6e5;
+  --text-bright: #e8f0fe;
+  --border: rgba(255,255,255,0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--ocean);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* Ambient background */
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: 
+    radial-gradient(ellipse at 20% 50%, rgba(45, 212, 191, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(56, 189, 248, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, rgba(255, 107, 90, 0.03) 0%, transparent 40%);
+  z-index: -1;
+  animation: drift 30s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  100% { transform: translate(-3%, 2%) rotate(1deg); }
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* Header */
+header {
+  padding: 4rem 0 3rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 3rem;
+}
+
+header .tag {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--lagoon);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+header .tag::before {
+  content: '';
+  width: 2rem;
+  height: 1px;
+  background: var(--lagoon);
+}
+
+h1 {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+}
+
+h1 span {
+  background: linear-gradient(135deg, var(--lagoon), var(--sky));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+header p {
+  font-size: 1.05rem;
+  color: var(--text);
+  max-width: 640px;
+  font-weight: 300;
+}
+
+/* Section */
+section {
+  margin-bottom: 3.5rem;
+}
+
+h2 {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--coral);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--coral), transparent);
+  opacity: 0.3;
+}
+
+h3 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--sand);
+  margin-bottom: 0.4rem;
+  margin-top: 1.25rem;
+}
+
+p, li {
+  font-size: 0.92rem;
+  line-height: 1.75;
+}
+
+p + p { margin-top: 0.75rem; }
+
+/* Diagram blocks */
+.diagram {
+  background: var(--deep);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  margin: 1.5rem 0;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--text);
+  position: relative;
+}
+
+.diagram::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 0.75rem;
+  right: 1rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lagoon);
+  opacity: 0.5;
+}
+
+.diagram .hl-coral { color: var(--coral); }
+.diagram .hl-lagoon { color: var(--lagoon); }
+.diagram .hl-sky { color: var(--sky); }
+.diagram .hl-palm { color: var(--palm); }
+.diagram .hl-sand { color: var(--sand); }
+.diagram .hl-shell { color: var(--shell); }
+.diagram .dim { opacity: 0.4; }
+
+/* Cards grid */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.card {
+  background: var(--foam);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.4rem;
+  transition: border-color 0.3s;
+}
+
+.card:hover {
+  border-color: rgba(255,255,255,0.15);
+}
+
+.card .card-tag {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+}
+
+.card .card-tag.coral { color: var(--coral); }
+.card .card-tag.lagoon { color: var(--lagoon); }
+.card .card-tag.sky { color: var(--sky); }
+.card .card-tag.palm { color: var(--palm); }
+.card .card-tag.shell { color: var(--shell); }
+
+.card h4 { margin-top: 0; color: var(--text-bright); font-size: 1rem; }
+
+/* Cost table */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.85rem;
+}
+
+thead th {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lagoon);
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  vertical-align: top;
+}
+
+tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+
+td:last-child {
+  font-family: 'Space Mono', monospace;
+  color: var(--shell);
+  white-space: nowrap;
+}
+
+.note {
+  background: rgba(45, 212, 191, 0.06);
+  border-left: 3px solid var(--lagoon);
+  border-radius: 0 8px 8px 0;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  font-size: 0.85rem;
+}
+
+.warn {
+  background: rgba(255, 107, 90, 0.06);
+  border-left: 3px solid var(--coral);
+  border-radius: 0 8px 8px 0;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  font-size: 0.85rem;
+}
+
+.phase-label {
+  display: inline-block;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  margin-right: 0.5rem;
+}
+
+.phase-label.now { background: rgba(34,197,94,0.15); color: var(--palm); }
+.phase-label.next { background: rgba(56,189,248,0.15); color: var(--sky); }
+.phase-label.later { background: rgba(255,107,90,0.1); color: var(--coral); }
+
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem 0;
+  margin-top: 2rem;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.25);
+  font-family: 'Space Mono', monospace;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="tag">Architecture Blueprint</div>
+  <h1>Bora Bora — <span>Infrastructure Design</span></h1>
+  <p>Cross-platform multiplayer island builder. Persistent worlds, real-time visits, minigames — engineered to scale from zero to millions while keeping costs under control.</p>
+</header>
+
+<!-- ─── PHILOSOPHY ─── -->
+<section>
+  <h2>01 — Design Philosophy</h2>
+  <h3>The "Thick Client, Thin Server" Principle</h3>
+  <p>Your prototype already proves the key insight: the island <em>rendering</em> is entirely client-side (Three.js, marching cubes, ecosystem simulation). The server never needs to render anything. It only stores data and relays real-time events. This is the single biggest cost saver — embrace it everywhere.</p>
+  <p>The server's job is simple: be a <strong>database + message relay</strong>. All heavy computation (terrain generation, physics, animations, lighting) stays on the player's device. This means your server costs scale with <em>connections and storage</em>, not compute — which is orders of magnitude cheaper.</p>
+</section>
+
+<!-- ─── HIGH LEVEL ARCH ─── -->
+<section>
+  <h2>02 — High-Level Architecture</h2>
+  <div class="diagram" data-label="System Overview">
+<span class="hl-sand">┌──────────────────────────────────────────────────────────────────────────┐</span>
+<span class="hl-sand">│  CLIENTS  (all run the same core engine)                                 │</span>
+<span class="hl-sand">│                                                                          │</span>
+<span class="hl-sand">│   Browser    Steam/Desktop    iOS App    Android App    Switch    PS5     │</span>
+<span class="hl-sand">│   (WebGL)    (Electron/       (WKWebView (WebView /    (Web       (Web   │</span>
+<span class="hl-sand">│              Tauri + WebGPU)   + native)  native)     Engine)    Eng.)  │</span>
+<span class="hl-sand">│              ▲                                                           │</span>
+<span class="hl-sand">└──────────────┼───────────────────────────────────────────────────────────┘</span>
+               │ HTTPS + WSS
+<span class="hl-lagoon">┌──────────────┼───────────────────────────────────────────────────────────┐</span>
+<span class="hl-lagoon">│  EDGE LAYER  │  (Cloudflare / Fastly)                                    │</span>
+<span class="hl-lagoon">│              │                                                           │</span>
+<span class="hl-lagoon">│  CDN ← static assets (models, textures, audio, WASM)                    │</span>
+<span class="hl-lagoon">│  DDoS protection, TLS termination, geo-routing                          │</span>
+<span class="hl-lagoon">└──────────────┼───────────────────────────────────────────────────────────┘</span>
+               │
+<span class="hl-sky">┌──────────────┼───────────────────────────────────────────────────────────┐</span>
+<span class="hl-sky">│  API GATEWAY │  (REST + WebSocket upgrade)                               │</span>
+<span class="hl-sky">│              │                                                           │</span>
+<span class="hl-sky">│  Auth ──── Island CRUD ──── Matchmaking ──── Leaderboard                │</span>
+<span class="hl-sky">│  (JWT)      (REST)          (WS connect)     (REST, cached)             │</span>
+<span class="hl-sky">└──────┬───────┬──────────────┬────────────────┬───────────────────────────┘</span>
+       │       │              │                │
+<span class="hl-coral">┌──────┴───────┴──────────────┴────────────────┴───────────────────────────┐</span>
+<span class="hl-coral">│  SERVICES                                                                │</span>
+<span class="hl-coral">│                                                                          │</span>
+<span class="hl-coral">│  <span class="hl-shell">Island Service</span>        <span class="hl-shell">Presence Service</span>       <span class="hl-shell">Minigame Service</span>         │</span>
+<span class="hl-coral">│  Save/load island      Who is where?          Authoritative game state   │</span>
+<span class="hl-coral">│  data (JSON blobs)     Relay positions/chat    Score validation           │</span>
+<span class="hl-coral">│       │                      │                       │                   │</span>
+<span class="hl-coral">│       ▼                      ▼                       ▼                   │</span>
+<span class="hl-coral">│  <span class="hl-palm">PostgreSQL</span>            <span class="hl-palm">Redis Pub/Sub</span>           <span class="hl-palm">Redis (state)</span>            │</span>
+<span class="hl-coral">│  + S3 (large blobs)    (ephemeral, no DB)      (short-lived keys)        │</span>
+<span class="hl-coral">└──────────────────────────────────────────────────────────────────────────┘</span>
+</div>
+</section>
+
+<!-- ─── CLIENT STRATEGY ─── -->
+<section>
+  <h2>03 — Cross-Platform Client Strategy</h2>
+  <h3>One Engine, Multiple Shells</h3>
+  <p>You've already built the hardest part — a single-file Three.js renderer. The cross-platform strategy is to keep that core engine (rewritten as a clean ES module) and wrap it in platform-specific shells. Don't rewrite in Unity or Unreal. Your Three.js/WebGL approach is the most portable option that exists.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-tag lagoon">Tier 1 — Ship First</div>
+      <h4>Browser (WebGL 2)</h4>
+      <p>Zero-install, your primary distribution channel. Works everywhere. This is your current build — just needs a server backend and multiplayer netcode. Serve via your own domain + CDN.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag lagoon">Tier 1 — Ship First</div>
+      <h4>Mobile (iOS + Android)</h4>
+      <p><strong>Capacitor.js</strong> (or similar) wraps your web app in a native shell. Get native App Store/Play Store distribution, push notifications, and access to device APIs. Add virtual joystick controls. The Three.js engine runs in a high-performance WebView. Budget ~2 weeks of adaptation work.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag sky">Tier 2 — Fast Follow</div>
+      <h4>Steam / Desktop</h4>
+      <p><strong>Tauri</strong> (Rust-based, tiny binary, ~3 MB vs Electron's 150 MB) or <strong>Electron</strong>. Same web engine, desktop window. Steam Overlay works with both. Tauri gives you WebGPU access on supported systems for a visual quality bump later. Add keyboard/mouse refinements and Steam achievements.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag coral">Tier 3 — Strategic</div>
+      <h4>Console (Switch / PS5)</h4>
+      <p>Both consoles have certified web engines (Nintendo Web Framework, PS5 WebMAF). Your Three.js core can run on these with <strong>platform-specific controller input mapping</strong> and cert compliance. This requires devkit access and publisher relationships — pursue after proving product-market fit.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Key insight:</strong> By staying in the WebGL/WebGPU ecosystem, you avoid maintaining parallel native codebases. One bug fix ships to all platforms simultaneously. This cuts your engineering team needs by 3-5× compared to a Unity/Unreal approach.
+  </div>
+</section>
+
+<!-- ─── ISLAND PERSISTENCE ─── -->
+<section>
+  <h2>04 — Island Persistence &amp; Codes</h2>
+  <h3>What Gets Stored</h3>
+  <p>An island is just the heightmap + a list of placed objects. Looking at your prototype, the data is surprisingly compact:</p>
+
+  <div class="diagram" data-label="Island Data Model">
+<span class="hl-shell">Island Record</span>  (PostgreSQL row)
+<span class="dim">─────────────────────────────────</span>
+  id              UUID (pk)
+  code            VARCHAR(8)       <span class="hl-lagoon">← the shareable code, e.g. "CORAL-7X"</span>
+  owner_id        UUID (fk → users)
+  name            VARCHAR(64)
+  created_at      TIMESTAMP
+  updated_at      TIMESTAMP
+  version         INT              <span class="hl-lagoon">← optimistic concurrency</span>
+  rating_avg      FLOAT
+  rating_count    INT
+  visitor_count   INT
+  is_public       BOOLEAN
+
+<span class="hl-shell">Island Data</span>  (S3 object, gzipped JSON, ~5-50 KB)
+<span class="dim">─────────────────────────────────</span>
+  {
+    "heightmap": {                <span class="hl-lagoon">← sparse format: only modified tiles</span>
+      "3,5":  { "rock": 4, "sand": 2 },
+      "3,6":  { "rock": 3, "sand": 3 },
+      ...
+    },
+    "flora": [                    <span class="hl-lagoon">← placed objects</span>
+      { "species": "coconut_palm", "x": 3.2, "z": 5.1, "rot": 1.4 },
+      ...
+    ],
+    "decorations": [...],
+    "settings": {                 <span class="hl-lagoon">← island-level config</span>
+      "timeOfDay": "cycle",
+      "music": "tropical_01"
+    }
+  }
+</div>
+
+  <h4>Why S3 for the blob?</h4>
+  <p>Island data will be read 100× more often than written (visitors load it, only the owner edits). S3 + CloudFront gives you effectively infinite read throughput at ~$0.02/GB. A 50 KB island served to 10,000 visitors costs $0.01. PostgreSQL stays lean with just metadata and indexes for search/ranking.</p>
+
+  <h4>Island Codes</h4>
+  <p>Generate human-friendly codes like <code>CORAL-7X</code> or <code>REEF-Q3M</code> using a prefix dictionary + random alphanumeric suffix. Store in a unique-indexed column. Codes are case-insensitive, profanity-filtered, and collision-checked at generation time. 8 characters gives you ~2.8 trillion combinations.</p>
+
+  <h4>Saving Strategy</h4>
+  <p>Auto-save every 30 seconds while the owner is editing, debounced. The client sends a diff (only changed tiles/objects since last save) which the server merges. This keeps write bandwidth tiny. Include a <code>version</code> counter for optimistic concurrency — if two sessions conflict, last-write-wins with the losing version stored as a rollback snapshot.</p>
+</section>
+
+<!-- ─── REAL-TIME MULTIPLAYER ─── -->
+<section>
+  <h2>05 — Real-Time Multiplayer</h2>
+  <h3>The "Island as Chat Room" Model</h3>
+  <p>When a player visits an island, they join a WebSocket room. This is conceptually identical to a chat room — the server relays messages between participants, never rendering anything.</p>
+
+  <div class="diagram" data-label="Presence Architecture">
+<span class="hl-shell">Player joins island CORAL-7X</span>
+
+<span class="hl-sky">Client</span>                     <span class="hl-coral">Presence Server</span>                  <span class="hl-sky">Other Clients</span>
+  │                              │                              │
+  │── WSS connect ──────────────►│                              │
+  │   { island: "CORAL-7X" }     │                              │
+  │                              │── subscribe ──►<span class="hl-palm">Redis PubSub</span>  │
+  │                              │   channel: "island:CORAL-7X"  │
+  │◄── welcome ──────────────────│                              │
+  │   { players: [...],          │                              │
+  │     islandData: "s3://..." } │                              │
+  │                              │                              │
+  │── position update ──────────►│── broadcast ────────────────►│
+  │   { x, y, z, rot, anim }    │   (via Redis pub)            │
+  │   <span class="hl-lagoon">(10 Hz, delta-compressed)</span>    │                              │
+  │                              │                              │
+  │── chat message ─────────────►│── broadcast ────────────────►│
+  │── emoji reaction ───────────►│── broadcast ────────────────►│
+  │── minigame action ──────────►│── validate + broadcast ─────►│
+</div>
+
+  <h4>Why This Is Cheap</h4>
+  <p>Position updates are ~40 bytes each. At 10 Hz with 20 players on an island, that's 8 KB/s per island — a single $5/mo server can handle thousands of simultaneous islands. Redis Pub/Sub keeps rooms distributed across multiple server instances without sticky sessions.</p>
+
+  <h4>Bandwidth Optimization</h4>
+  <p>Send position updates as <strong>delta-compressed binary</strong> (MessagePack or a custom binary format), not JSON. Quantize positions to centimeter precision (Int16 instead of Float64). Interpolate on the receiving client. This cuts bandwidth by ~80% vs naive JSON.</p>
+
+  <h4>Player Count Per Island</h4>
+  <p>Cap at 20-30 simultaneous visitors per island for both UX and performance reasons. Your Three.js prototype targets 100K tris — each player avatar at ~500 tris leaves plenty of headroom. If an island gets ultra-popular, offer "instance" copies (CORAL-7X #1, #2, etc.).</p>
+</section>
+
+<!-- ─── SERVICES BREAKDOWN ─── -->
+<section>
+  <h2>06 — Backend Services</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-tag shell">Service</div>
+      <h4>Auth Service</h4>
+      <p>OAuth2 (Google, Apple, Discord, Steam) + email/password fallback. Issue JWTs with 15-min access + 7-day refresh tokens. Guest accounts for instant play — upgrade to permanent later. Use an off-the-shelf solution like <strong>Supabase Auth</strong> or <strong>Clerk</strong> to avoid building this yourself.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag shell">Service</div>
+      <h4>Island Service (REST)</h4>
+      <p>CRUD for islands. <code>POST /islands</code> (create), <code>GET /islands/:code</code> (load), <code>PUT /islands/:id/data</code> (save). Reads go through CDN. Writes are rate-limited to 1/30s. Also handles island search, filtering by rating/tags, and the discovery feed.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag shell">Service</div>
+      <h4>Presence Service (WebSocket)</h4>
+      <p>Stateful WS connections. Manages room membership, relays position/chat/action events via Redis Pub/Sub. No database writes — everything is ephemeral. This is your most latency-sensitive service; deploy in multiple regions.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag shell">Service</div>
+      <h4>Minigame Service</h4>
+      <p>Authoritative server for competitive minigames (prevents cheating). Runs game logic server-side for scored activities. Casual/cooperative minigames can be peer-validated with spot-checks. Results written to PostgreSQL for leaderboards.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag shell">Service</div>
+      <h4>Rating &amp; Ranking</h4>
+      <p>Players rate islands 1-5 stars after visiting. Store in PostgreSQL with a materialized view for rankings. Cache the top-100 / trending list in Redis (refresh every 5 min). Wilson score interval for fair ranking of islands with few vs many votes.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag shell">Service</div>
+      <h4>CDN / Asset Pipeline</h4>
+      <p>All static assets (GLB models, textures, audio, WASM modules) served from S3 + CloudFront. Aggressive caching with content-hash filenames. Island data also served via CDN with short TTL (30s) so visitors get near-instant loads.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── TECH STACK ─── -->
+<section>
+  <h2>07 — Recommended Tech Stack</h2>
+
+  <div class="diagram" data-label="Stack Decisions">
+<span class="hl-shell">LANGUAGE</span>        <span class="hl-lagoon">Go or Rust</span> for Presence (perf-critical)
+                <span class="hl-lagoon">TypeScript/Node</span> for REST APIs (shared types with client)
+                <span class="hl-lagoon">TypeScript</span> for all client code (shared island data types)
+
+<span class="hl-shell">RUNTIME</span>         <span class="hl-lagoon">Bun</span> or <span class="hl-lagoon">Node 22</span> for API servers
+                <span class="hl-lagoon">Cloudflare Workers</span> for edge functions (auth, rate limiting)
+
+<span class="hl-shell">DATABASE</span>        <span class="hl-lagoon">PostgreSQL 16</span>  (Supabase or Neon for managed + free tier)
+                <span class="hl-lagoon">Redis 7</span>         (Upstash for serverless pricing, or Fly.io Redis)
+                <span class="hl-lagoon">S3 / R2</span>         (Cloudflare R2 = zero egress fees!)
+
+<span class="hl-shell">REALTIME</span>        <span class="hl-lagoon">Native WebSocket</span> server (Go/Rust)
+                OR <span class="hl-lagoon">Cloudflare Durable Objects</span> (each island = a Durable Object)
+                OR <span class="hl-lagoon">PartyKit</span> (built on Durable Objects, simpler API)
+
+<span class="hl-shell">HOSTING</span>         <span class="hl-lagoon">Fly.io</span>  — easy multi-region, cheap VMs, built-in Redis
+                OR <span class="hl-lagoon">Railway</span> — simpler, auto-scaling, good for starting
+                OR <span class="hl-lagoon">Cloudflare Workers</span> — serverless, pay-per-request, cheapest at scale
+
+<span class="hl-shell">DEPLOY</span>          <span class="hl-lagoon">Docker</span> containers → Fly.io / Railway
+                <span class="hl-lagoon">GitHub Actions</span> CI/CD pipeline
+                <span class="hl-lagoon">Terraform</span> for infrastructure-as-code (later)
+</div>
+
+  <div class="note">
+    <strong>Top cost-saving pick:</strong> <strong>Cloudflare R2 + Workers + Durable Objects</strong> is the most cost-efficient stack for this specific game. R2 has zero egress fees (vs S3's $0.09/GB). Workers are $0.50/million requests. Each Durable Object is a persistent island room that only costs money when someone is on it. You'd pay almost nothing during off-peak hours.
+  </div>
+</section>
+
+<!-- ─── SCALING STAGES ─── -->
+<section>
+  <h2>08 — Scaling Roadmap &amp; Cost Projections</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Scale</th>
+        <th>Architecture</th>
+        <th>Est. Monthly Cost</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="phase-label now">Phase 1</span><br><strong>0 – 1K DAU</strong><br>Launch &amp; validate</td>
+        <td>Single Fly.io VM (shared-cpu-2x, 1 GB RAM) running API + WebSocket. Supabase free tier for Postgres. Upstash free tier for Redis. Cloudflare R2 free tier for assets. Cloudflare free CDN.</td>
+        <td>$5 – 25/mo</td>
+      </tr>
+      <tr>
+        <td><span class="phase-label next">Phase 2</span><br><strong>1K – 50K DAU</strong><br>Growing</td>
+        <td>Separate API and Presence servers (2-3 Fly.io VMs per region, 2 regions). Supabase Pro. Upstash Pro. R2 paid tier. Add a second region for presence (e.g., US + EU).</td>
+        <td>$100 – 500/mo</td>
+      </tr>
+      <tr>
+        <td><span class="phase-label later">Phase 3</span><br><strong>50K – 500K DAU</strong><br>Scaling</td>
+        <td>Auto-scaling Fly.io fleet (5-15 VMs, 3+ regions). Dedicated Postgres (RDS or Supabase Team). Redis cluster. Cloudflare Workers for edge auth/routing. Monitoring stack (Grafana + Prometheus).</td>
+        <td>$1K – 5K/mo</td>
+      </tr>
+      <tr>
+        <td><span class="phase-label later">Phase 4</span><br><strong>500K+ DAU</strong><br>At scale</td>
+        <td>Kubernetes or Nomad for orchestration. Multi-master Postgres with read replicas. Global presence mesh (6+ regions). Dedicated CDN contract. Full SRE team.</td>
+        <td>$10K – 50K/mo</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <strong>The trap to avoid:</strong> Don't over-architect for Phase 4 on day one. Start with the single-server setup — it can handle far more than you think. A single Go WebSocket server on a 2-core VM can sustain ~50,000 concurrent connections. You won't need to split services until you're well into Phase 2.
+  </div>
+</section>
+
+<!-- ─── COST KILLERS ─── -->
+<section>
+  <h2>09 — Cost Optimization Strategies</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-tag palm">Savings: 80%+ on storage</div>
+      <h4>Cloudflare R2 over AWS S3</h4>
+      <p>S3 egress is $0.09/GB. For a game with millions of island loads, that alone could be thousands per month. R2 has <strong>zero egress fees</strong>. Same S3-compatible API. This single switch could save more than everything else combined.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag palm">Savings: 60% on bandwidth</div>
+      <h4>Binary Protocol for Realtime</h4>
+      <p>Position updates in JSON: ~120 bytes. Same data in a packed binary format: ~20 bytes. Over millions of messages per hour, this dramatically reduces bandwidth costs and lets each server handle more connections.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag palm">Savings: Variable</div>
+      <h4>Sparse Heightmap Storage</h4>
+      <p>Your current heightmap stores every modified tile. Keep this sparse format — most islands will only modify 20-40% of tiles. A typical island is 5-15 KB compressed, not megabytes. Gzip before storing.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag palm">Savings: 90% on idle costs</div>
+      <h4>Scale to Zero</h4>
+      <p>Use serverless or "scale to zero" hosting (Cloudflare Workers, Fly.io Machines) so you literally pay nothing when nobody is playing. Traditional VMs cost money 24/7. This matters enormously for a game with daily peaks and valleys.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag palm">Savings: 50% on API costs</div>
+      <h4>Aggressive CDN Caching</h4>
+      <p>Island data, leaderboards, popular island lists, player profiles — all cacheable at the edge with 30-60s TTL. This means most "reads" never hit your servers at all. Only writes and real-time events require server processing.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag palm">Savings: Prevents runaway costs</div>
+      <h4>Rate Limiting Everything</h4>
+      <p>Position updates: cap at 10 Hz. Chat: 2 msg/sec. Saves: 1 per 30s. API: 60 req/min per user. Without these limits, a single misbehaving client can cost you real money. Implement at the edge (Cloudflare) to reject bad traffic before it reaches your servers.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── MINIGAMES ─── -->
+<section>
+  <h2>10 — Minigame Architecture</h2>
+  <h3>Two Tiers of Authority</h3>
+
+  <p><strong>Cooperative / casual minigames</strong> (fishing, gardening, treasure hunts): Run entirely client-side. Players broadcast their actions; other clients validate locally. No server cost. If someone cheats, it only affects their own island — low stakes.</p>
+
+  <p><strong>Competitive / scored minigames</strong> (races, puzzles, build contests): Use a lightweight authoritative server. The server receives inputs, simulates the game at 20 Hz, and broadcasts the canonical state. Results are signed and stored for leaderboards. This prevents score manipulation.</p>
+
+  <div class="diagram" data-label="Minigame Flow">
+<span class="hl-shell">Cooperative (no server cost)</span>              <span class="hl-shell">Competitive (authoritative)</span>
+
+ Client A ───action───► Client B             Client A ───input───► <span class="hl-coral">Server</span>
+ Client B ───action───► Client A             Client B ───input───► <span class="hl-coral">Server</span>
+ <span class="hl-lagoon">(peer-to-peer via relay)</span>                     <span class="hl-coral">Server</span> ──state──► All clients
+                                             <span class="hl-coral">Server</span> ──result──► Database
+</div>
+
+  <div class="note">
+    <strong>Start cooperative-only.</strong> You can launch with peer-relayed casual minigames and add authoritative competitive ones later. This lets you ship faster and cheaper.
+  </div>
+</section>
+
+<!-- ─── DATA MODEL ─── -->
+<section>
+  <h2>11 — Database Schema (Simplified)</h2>
+
+  <div class="diagram" data-label="PostgreSQL Tables">
+<span class="hl-shell">users</span>
+  id              UUID PRIMARY KEY
+  display_name    VARCHAR(32)
+  avatar_config   JSONB              <span class="hl-lagoon">← appearance, cosmetics</span>
+  auth_provider   VARCHAR(16)
+  auth_id         VARCHAR(128)
+  created_at      TIMESTAMP
+  island_count    INT DEFAULT 0      <span class="hl-lagoon">← denormalized for fast queries</span>
+
+<span class="hl-shell">islands</span>
+  id              UUID PRIMARY KEY
+  code            VARCHAR(8) UNIQUE  <span class="hl-lagoon">← the shareable code</span>
+  owner_id        UUID → users
+  name            VARCHAR(64)
+  description     TEXT
+  data_url        VARCHAR(256)       <span class="hl-lagoon">← R2/S3 key for island JSON</span>
+  thumbnail_url   VARCHAR(256)       <span class="hl-lagoon">← auto-generated screenshot</span>
+  is_public       BOOLEAN DEFAULT true
+  tags            TEXT[]             <span class="hl-lagoon">← ["tropical", "zen", "adventure"]</span>
+  rating_sum      INT DEFAULT 0
+  rating_count    INT DEFAULT 0
+  visitor_count   INT DEFAULT 0
+  version         INT DEFAULT 1
+  created_at      TIMESTAMP
+  updated_at      TIMESTAMP
+  <span class="dim">INDEX idx_islands_code ON islands(code)</span>
+  <span class="dim">INDEX idx_islands_rating ON islands((rating_sum::float / NULLIF(rating_count, 0))) WHERE is_public</span>
+
+<span class="hl-shell">ratings</span>
+  user_id         UUID → users
+  island_id       UUID → islands
+  score           SMALLINT (1-5)
+  created_at      TIMESTAMP
+  <span class="dim">PRIMARY KEY (user_id, island_id)   ← one rating per user per island</span>
+
+<span class="hl-shell">visits</span>  <span class="hl-lagoon">(append-only log, partition by month)</span>
+  user_id         UUID
+  island_id       UUID
+  entered_at      TIMESTAMP
+  left_at         TIMESTAMP
+  <span class="dim">INDEX idx_visits_island ON visits(island_id, entered_at)</span>
+
+<span class="hl-shell">minigame_scores</span>
+  id              UUID PRIMARY KEY
+  user_id         UUID → users
+  island_id       UUID → islands
+  game_type       VARCHAR(32)
+  score           INT
+  played_at       TIMESTAMP
+  <span class="dim">INDEX idx_scores_game ON minigame_scores(game_type, score DESC)</span>
+</div>
+</section>
+
+<!-- ─── PHASED IMPLEMENTATION ─── -->
+<section>
+  <h2>12 — Implementation Roadmap</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-tag palm">Phase 1 — 4-6 weeks</div>
+      <h4>MVP: Single-Player + Persistence</h4>
+      <p>Refactor your 4,900-line HTML into ES modules. Add user auth (Supabase). Implement island save/load to R2. Generate island codes. Build a simple "browse islands" page. Deploy to Cloudflare Pages + single Fly.io backend. <em>This alone is a shippable product.</em></p>
+    </div>
+    <div class="card">
+      <div class="card-tag sky">Phase 2 — 4-6 weeks</div>
+      <h4>Multiplayer Visits</h4>
+      <p>Add WebSocket presence server. Implement avatar rendering in Three.js (low-poly character, ~500 tris). Position sync at 10 Hz. Chat overlay. "Who's here" player list. Visitor counter. This transforms the game from a toy into a social platform.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag coral">Phase 3 — 4-6 weeks</div>
+      <h4>Social Features + Minigames</h4>
+      <p>Rating system + leaderboards. Island discovery feed (trending, top-rated, new). First 2-3 cooperative minigames (fishing, shell collecting, sand castle contest). Emoji reactions. Mobile app packaging via Capacitor.</p>
+    </div>
+    <div class="card">
+      <div class="card-tag shell">Phase 4 — Ongoing</div>
+      <h4>Polish + Platforms</h4>
+      <p>Steam release (Tauri wrapper). Competitive minigames with authoritative server. Cosmetic avatar customization (monetization hook). Console ports. Performance optimization (InstancedMesh batching, LOD). Community features (follow islands, friend lists).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── KEY DECISIONS ─── -->
+<section>
+  <h2>13 — Critical Decision Points</h2>
+
+  <h4>WebSocket Library: Build vs Buy</h4>
+  <p><strong>Build</strong> (recommended): A raw WebSocket server in Go with Redis Pub/Sub gives you maximum control and minimum cost. The protocol is simple — you're relaying small messages. Libraries like <code>gorilla/websocket</code> or <code>nhooyr/websocket</code> make this straightforward. <strong>Buy</strong>: Services like Ably, Pusher, or PubNub charge per message — at gaming volumes (millions of position updates/day), this gets expensive fast. Avoid unless you need to ship in under 2 weeks.</p>
+
+  <h4>Cloudflare Durable Objects as an Alternative</h4>
+  <p>Each island becomes a Durable Object — a serverless stateful container. It wakes up when someone visits, handles all WebSocket connections for that island, and goes to sleep when empty ($0). No server management, automatic global distribution. The trade-off: vendor lock-in and a $5/mo minimum on the Workers Paid plan. For your use case, this might be the simplest and cheapest path.</p>
+
+  <h4>Monetization-Aware Architecture</h4>
+  <p>Design the <code>avatar_config</code> and island <code>settings</code> JSON to support cosmetic items from day one — even if you don't sell them yet. Having the data model ready means monetization is a content update, not an architecture rewrite. Consider: avatar skins, island themes, special flora/fauna species, expanded island size, name colors in chat.</p>
+</section>
+
+<!-- ─── SECURITY ─── -->
+<section>
+  <h2>14 — Security Considerations</h2>
+  <p><strong>Island data validation:</strong> When an owner saves their island, validate the JSON server-side. Reject islands with impossible dimensions, banned content in names, or data exceeding 1 MB. Don't trust the client.</p>
+  <p><strong>Rate limiting:</strong> Implement at the edge (Cloudflare), not in your app. This stops abuse before it reaches your servers. Key limits: 10 position updates/sec, 2 chat messages/sec, 60 API calls/min per user.</p>
+  <p><strong>Anti-cheat for minigames:</strong> For any scored competition, the server must be authoritative. Never trust a client-reported score. For casual games, you can use statistical anomaly detection (flag scores that are >3σ above the mean).</p>
+  <p><strong>Content moderation:</strong> Island names and chat messages should pass through a lightweight text filter. For islands flagged by user reports, implement a review queue. Consider using an AI-based content moderation API for island thumbnails.</p>
+</section>
+
+<footer>
+  <div class="container">
+    Bora Bora Architecture Blueprint — v1.0 — Feb 2026
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

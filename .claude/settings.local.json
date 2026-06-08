@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(tasklist:*)",
+      "Bash(powershell:*)",
+      "Bash(npx vite:*)",
+      "Bash(netstat:*)",
+      "Bash(node -e:*)",
+      "Bash(node:*)",
+      "Bash(ren:*)",
+      "Bash(move _fix_cursor.js _fix_cursor.cjs)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.richardfu.net)",
+      "WebFetch(domain:www.gamedev.net)",
+      "WebFetch(domain:coryg89.github.io)",
+      "WebFetch(domain:codesandbox.io)",
+      "WebFetch(domain:tympanus.net)",
+      "WebFetch(domain:varun.ca)",
+      "Bash(dir \"C:\\\\Users\\\\chomp\\\\Desktop\\\\Bora Bora\\\\Project Backups\\\\Febuary 13th\"\")",
+      "Bash(unzip:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(npx vercel:*)",
+      "Bash(git add:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git checkout:*)",
+      "Bash(git mv:*)"
+    ]
+  }
+}

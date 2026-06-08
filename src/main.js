@@ -39,6 +39,7 @@ import {
 
 import { updateRockLOD, initRocks } from './rocks.js'; // Procedural rock system (Layer 2)
 import { initSlabScatter } from './slab-scatter.js'; // Stone slab placement (Layer 3)
+import { initBirds, updateBirds } from './birds.js'; // Circling/landing seagulls (daytime)
 
 import { getPanLimit, rotateCam, cycleCam } from './camera.js';
 
@@ -694,6 +695,7 @@ function animate() {
   const ecoDt = Math.min(0.05, t - (window._lastEcoT || t));
   ecosystemTick(t, ecoDt);
   tickCrumbleParticles(ecoDt);
+  updateBirds(t, ecoDt);
   window._lastEcoT = t;
 
   // Player update (movement, surface following, rotation)
@@ -1554,3 +1556,6 @@ if (!_fromLanding) {
 
 // Place stone slabs on seabed + coves
 initSlabScatter();
+
+// Seagulls — circle the island and land (daytime only)
+initBirds();

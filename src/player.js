@@ -709,6 +709,13 @@ export function getPlayerWorldPosition() {
   return playerState.position;
 }
 
+// True when the player avatar is actually in the world (visible). Used by
+// birds.js so seagulls only flee from a present character, not from the
+// invisible spawn position in dev mode.
+export function isPlayerActive() {
+  return !!(playerState.mesh && playerState.mesh.visible);
+}
+
 export function isPlayerUnderwater() {
   return playerState.isSwimming && playerState.diveY < -0.3;
 }

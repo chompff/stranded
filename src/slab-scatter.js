@@ -291,6 +291,9 @@ function getTongueWarp(wx, wz) {
 const _dummy = new THREE.Object3D();
 const _color = new THREE.Color();
 const slabMeshes = [];
+// Expose for underwater raycasts (e.g. player dive floor in player.js). The
+// array reference is stable — instances are pushed during initSlabScatter().
+terrainRefs.slabMeshes = slabMeshes;
 
 // ════════════════════════════════════════════════════════════════
 // PUBLIC INIT

@@ -95,6 +95,7 @@ export const terrainRefs = {
   sharedRockMat: null,
   sharedSandMat: null,
   seabedMesh: null,          // Set by sky-water.js — used for underwater raycasts (coral, dive)
+  slabMeshes: null,          // Set by slab-scatter.js — underwater rock slabs, for dive floor raycasts
 };
 
 // --- Undo ---

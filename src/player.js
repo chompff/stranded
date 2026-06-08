@@ -91,10 +91,23 @@ function getSurfaceHeight(worldX, worldZ) {
   if (!bg || bg.children.length === 0) return { y: -20, hasTerrain: false };
   _surfaceOrigin.set(worldX, 50, worldZ);
   _surfaceRay.set(_surfaceOrigin, _surfaceDir);
+  // Shoreline/island terrain first — it sits on top where it exists.
   const hits = _surfaceRay.intersectObjects(bg.children, true);
-  return hits.length > 0
-    ? { y: hits[0].point.y, hasTerrain: true }
-    : { y: -20, hasTerrain: false };
+  if (hits.length > 0) return { y: hits[0].point.y, hasTerrain: true };
+  // Deep water: the island terrain doesn't extend here. The real floor is the
+  // highest of the seabed and any underwater rock slab beneath us — otherwise
+  // the capsule sinks straight through the ocean floor or the rocks.
+  let floorY = -Infinity;
+  if (terrainRefs.seabedMesh) {
+    const sh = _surfaceRay.intersectObject(terrainRefs.seabedMesh, false);
+    if (sh.length > 0) floorY = sh[0].point.y;
+  }
+  if (terrainRefs.slabMeshes && terrainRefs.slabMeshes.length > 0) {
+    const rh = _surfaceRay.intersectObjects(terrainRefs.slabMeshes, false);
+    if (rh.length > 0 && rh[0].point.y > floorY) floorY = rh[0].point.y;
+  }
+  if (floorY > -Infinity) return { y: floorY, hasTerrain: true };
+  return { y: -20, hasTerrain: false };
 }
 
 // ============================================================
@@ -659,6 +672,18 @@ export function updatePlayer(dt) {
     const lerpRate = 0.12;
     playerState.mesh.position.y += (targetMeshY - playerState.mesh.position.y) * lerpRate;
   }
+
+  // Hard floor while swimming: the smoothing lerp above can lag behind a
+  // fast-rising seabed (e.g. swimming up a sandbar), letting the capsule sink
+  // into the sand and visually disappear. Clamp so it never renders below the
+  // ground beneath it. Uses the unsmoothed terrain height + the same 0.3
+  // margin the swim/dive clamps use; only swimming is affected (wading keeps
+  // its intentional partial-submersion).
+  if (playerState.isSwimming && playerState.hasTerrain) {
+    const floorY = playerState.rawSurfaceY + 0.3;
+    if (playerState.mesh.position.y < floorY) playerState.mesh.position.y = floorY;
+  }
+
   playerState.mesh.position.x = playerState.position.x;
   playerState.mesh.position.z = playerState.position.z;
 

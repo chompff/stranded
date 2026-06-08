@@ -11,11 +11,38 @@
   canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
 
   /* Music UI */
-  .music-ui {
+  #guestSignupBar { display: none !important; }
+  .this-is-you { display: none !important; }
+  /* ── Top-right HUD row: music/ambient buttons + clock ── */
+  #hud {
     position: fixed;
-    bottom: max(20px, env(safe-area-inset-bottom, 20px));
-    left: max(20px, env(safe-area-inset-left, 20px));
+    top: max(20px, env(safe-area-inset-top, 20px));
+    right: max(20px, env(safe-area-inset-right, 20px));
     z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  /* ── Real-time clock (opening-screen font) ──
+     Shows the user's local time — the same clock the day/night cycle
+     is driven from (see dnc_clockToCycleTime in sky-water.js). */
+  #clock {
+    font-family: 'Tahiti', serif;
+    font-size: clamp(1.6rem, 5vw, 2.8rem);
+    color: #fff;
+    letter-spacing: 0.08em;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+  }
+  /* Tahiti has no colon glyph (it's blank), so render the separator
+     in a playful fallback font that actually has one. */
+  #clock .clk-sep {
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', 'Segoe Print', cursive;
+    margin: 0 -0.05em;
+  }
+  /* ── Music UI (in the HUD row, left of the clock) ── */
+  .music-ui {
     display: flex;
     gap: 8px;
     user-select: none;
@@ -962,7 +989,9 @@
   <source src="assets/audio/ambient-below.mp3" type="audio/mpeg">
 </audio>
 
-<!-- Music UI -->
+<!-- Top-right HUD: music/ambient buttons + clock -->
+<div id="hud">
+<!-- Music/Ambient — left of the clock -->
 <div class="music-ui" id="musicUI">
   <button class="music-btn" id="playBtn" title="Play/Pause" aria-label="Toggle music">
     <span class="eq-bars">
@@ -983,6 +1012,23 @@
     Ambient
   </button>
 </div>
+<!-- Real-time clock — right of the music/ambient buttons -->
+<div id="clock"></div>
+</div><!-- /#hud -->
+<script>
+(function () {
+  var clockEl = document.getElementById('clock');
+  function tick() {
+    if (!clockEl) return;
+    var d = new Date();
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    clockEl.innerHTML = hh + '<span class="clk-sep">:</span>' + mm;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
 
 <script>
 // ============================================================

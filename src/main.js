@@ -40,6 +40,7 @@ import {
 import { updateRockLOD, initRocks } from './rocks.js'; // Procedural rock system (Layer 2)
 import { initSlabScatter } from './slab-scatter.js'; // Stone slab placement (Layer 3)
 import { initBirds, updateBirds } from './birds.js'; // Circling/landing seagulls (daytime)
+import { initFish, updateFish } from './fish.js'; // Schooling reef fish over the reef (daytime)
 
 import { getPanLimit, rotateCam, cycleCam } from './camera.js';
 
@@ -696,6 +697,7 @@ function animate() {
   ecosystemTick(t, ecoDt);
   tickCrumbleParticles(ecoDt);
   updateBirds(t, ecoDt);
+  updateFish(t, ecoDt);
   window._lastEcoT = t;
 
   // Player update (movement, surface following, rotation)
@@ -1559,3 +1561,6 @@ initSlabScatter();
 
 // Seagulls — circle the island and land (daytime only)
 initBirds();
+
+// Reef fish — school over the reef rocks, scatter from the diver (daytime only)
+initFish();

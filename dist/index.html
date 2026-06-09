@@ -6,7 +6,7 @@
 <title>Stranded in Paradise</title>
 <meta name="description" content="A tropical island builder game. Get notified when it's playable.">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, auto !important; }
+  * { margin: 0; padding: 0; box-sizing: border-box; cursor: url('/assets/cursor-BwDtz9__.svg') 1 1, auto !important; }
   @font-face { font-family: 'Tahiti'; src: url('/assets/tahiti-8gB10FcK.otf') format('opentype'); }
   html, body { overflow: hidden; background: #000; width: 100%; height: 100%; }
   canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
@@ -101,7 +101,7 @@
     text-align: center;
     outline: none;
     transition: border-color 0.2s, background 0.2s;
-    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, text !important;
+    cursor: url('/assets/cursor-BwDtz9__.svg') 1 1, text !important;
   }
   @media (min-width: 520px) {
     .landing-input { padding: 12px 18px; font-size: 15px; }
@@ -121,7 +121,7 @@
     -webkit-backdrop-filter: blur(12px);
     color: #fff;
     font: 600 13px/1 system-ui, -apple-system, sans-serif;
-    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    cursor: url('/assets/cursor-BwDtz9__.svg') 1 1, pointer !important;
     transition: all 0.2s;
     white-space: nowrap;
   }
@@ -132,7 +132,7 @@
   .landing-submit:active { transform: scale(0.96); }
   .landing-submit:disabled {
     opacity: 0.5;
-    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, not-allowed !important;
+    cursor: url('/assets/cursor-BwDtz9__.svg') 1 1, not-allowed !important;
   }
 
   /* ── Success / Error Messages ── */
@@ -181,7 +181,7 @@
     transition: all 0.2s;
     opacity: 0;
     animation: fadeInUp 1.2s ease-out 1.8s forwards;
-    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    cursor: url('/assets/cursor-BwDtz9__.svg') 1 1, pointer !important;
     letter-spacing: 0.02em;
   }
   @media (min-width: 520px) {
@@ -273,12 +273,52 @@
   .signup-submit:active { transform: scale(0.96); }
   .signup-submit:disabled { opacity: 0.5; }
 
-  /* ── Music UI ── */
-  .music-ui {
+  /* ── Top signup bar removed ── */
+  #guestSignupBar { display: none !important; }
+
+  /* ── Landing signup form removed (keep title + "Enter paradise now") ── */
+  .landing-subtitle,
+  #signupForm,
+  #formMessage,
+  .landing-or { display: none !important; }
+
+  /* ── "This is you" indicator removed ── */
+  .this-is-you { display: none !important; }
+
+  /* ── Top-right HUD row: music/ambient buttons + clock ── */
+  #hud {
     position: fixed;
-    bottom: max(20px, env(safe-area-inset-bottom, 20px));
-    left: max(20px, env(safe-area-inset-left, 20px));
+    top: max(20px, env(safe-area-inset-top, 20px));
+    right: max(20px, env(safe-area-inset-right, 20px));
     z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* ── Real-time clock (opening-screen font) ──
+     Shows the user's local time — the same clock the day/night cycle
+     is driven from (see dnc_clockToCycleTime in sky-water.js). */
+  #clock {
+    font-family: 'Tahiti', serif;
+    font-size: clamp(1.6rem, 5vw, 2.8rem);
+    color: #fff;
+    letter-spacing: 0.08em;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+  }
+  /* Tahiti has no colon glyph (it's blank), so render the separator
+     in a playful fallback font that actually has one. */
+  #clock .clk-sep {
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', 'Segoe Print', cursive;
+    margin: 0 -0.05em;
+  }
+
+  /* ── Music UI (in the HUD row, left of the clock) ── */
+  .music-ui {
+    display: flex;
+    gap: 8px;
     user-select: none;
     -webkit-user-select: none;
     touch-action: manipulation;
@@ -293,7 +333,7 @@
     font: 600 13px/1 system-ui, sans-serif;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    cursor: url('/assets/cursor-Cp-NsyKv.svg') 1 1, pointer !important;
+    cursor: url('/assets/cursor-BwDtz9__.svg') 1 1, pointer !important;
     transition: all 0.2s;
     user-select: none;
     -webkit-user-select: none;
@@ -348,8 +388,8 @@
     100% { transform: translateY(105vh) translateX(var(--drift)) rotate(var(--spin)); opacity: 0; }
   }
 </style>
-  <script type="module" crossorigin src="/assets/main-BXFhJFVD.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/terrain-eXjFTk1i.js">
+  <script type="module" crossorigin src="/assets/main-D249pUum.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/terrain-BFmnCi9n.js">
 </head>
 <body>
 
@@ -377,7 +417,9 @@
   <source src="/assets/ambient-D9Dzqtft.mp3" type="audio/mpeg">
 </audio>
 
-<!-- Music UI -->
+<!-- Top-right HUD (music/ambient + clock). Hidden on landing, revealed in paradise. -->
+<div id="hud" style="display:none">
+<!-- Music/Ambient — left of the clock -->
 <div class="music-ui" id="musicUI">
   <button class="music-btn" id="playBtn" title="Play/Pause" aria-label="Toggle music">
     <span class="eq-bars">
@@ -389,6 +431,9 @@
     Music
   </button>
 </div>
+<!-- Real-time clock — right of the music/ambient buttons -->
+<div id="clock"></div>
+</div><!-- /#hud -->
 
 <!-- Landing Page 3D Scene -->
 
@@ -443,6 +488,22 @@ function autoStartMusic() {
 window.addEventListener('pointerdown', autoStartMusic, { once: false });
 window.addEventListener('keydown', autoStartMusic, { once: false });
 window.addEventListener('touchstart', autoStartMusic, { once: false });
+</script>
+
+<!-- Real-time clock — same device clock that drives the day/night cycle -->
+<script>
+(function () {
+  var clockEl = document.getElementById('clock');
+  function tick() {
+    if (!clockEl) return;
+    var d = new Date();
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    clockEl.innerHTML = hh + '<span class="clk-sep">:</span>' + mm;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
 </script>
 
 <!-- Play Now — seamless transition to game (no reload) -->

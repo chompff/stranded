@@ -82,9 +82,9 @@ const SCAN_Z_MIN = -300, SCAN_Z_MAX = 250;
 const EDGE_CHECK = 8;
 
 // ── Rock placement caps ──
-const MAX_LARGE_ROCKS = 100;
-const MAX_MEDIUM_ROCKS = 300;
-const MAX_SMALL_ROCKS = 500;
+const MAX_LARGE_ROCKS = 60;    // perf: was 100
+const MAX_MEDIUM_ROCKS = 150;  // perf: was 300
+const MAX_SMALL_ROCKS = 200;   // perf: was 500
 
 // ── Reef mask thresholds ──
 const MASK_DENSE = 0.5;    // large + medium slab

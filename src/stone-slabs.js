@@ -501,7 +501,7 @@ export function generateTieredReefRockVariants(seed) {
       gx: b.gx + offsetX, gz: b.gz + offsetZ, gy: b.gy + offsetY,
     }));
 
-    const geo = buildReefRockGeometry(blocks, 7);
+    const geo = buildReefRockGeometry(blocks, 5);  // perf: was 7 — large rocks keep moderate detail
     if (geo) result.large.push(geo);
   }
 
@@ -523,7 +523,7 @@ export function generateTieredReefRockVariants(seed) {
       gx: b.gx + offsetX, gz: b.gz + offsetZ, gy: b.gy + offsetY,
     }));
 
-    const geo = buildReefRockGeometry(blocks, 7);
+    const geo = buildReefRockGeometry(blocks, 4);  // perf: was 7 — medium outcrops
     if (geo) result.medium.push(geo);
   }
 
@@ -537,7 +537,7 @@ export function generateTieredReefRockVariants(seed) {
       gx: b.gx + offsetX, gz: b.gz + offsetZ, gy: b.gy + offsetY,
     }));
 
-    const geo = buildReefRockGeometry(blocks, 7);
+    const geo = buildReefRockGeometry(blocks, 3);  // perf: was 7 — small rubble (most numerous); coarse is fine
     if (geo) result.small.push(geo);
   }
 

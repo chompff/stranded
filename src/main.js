@@ -12,7 +12,7 @@ import {
   orbitLookY, setOrbitLookY,
   gameplayZoom, setGameplayZoom,
   buildZoom, setBuildZoom,
-  ISLAND_SEED
+  ISLAND_SEED, gfxRuntime
 } from './state.js';
 
 import {
@@ -43,6 +43,7 @@ import { initBirds, updateBirds } from './birds.js'; // Circling/landing seagull
 import { initFish, updateFish } from './fish.js'; // Schooling reef fish over the reef (daytime)
 
 import { getPanLimit, rotateCam, cycleCam } from './camera.js';
+import { initSettings } from './settings.js';
 
 import { buildBuildMenu, toggleBuildMode, updateBuildCameraPosition } from './ui.js';
 import { isDev } from './mode.js';
@@ -378,6 +379,18 @@ weatherInit();
 setCloudState(weatherState.current);
 
 // ============================================================
+// Settings menu (player-facing) — gear → Audio / Graphics / Weather
+// ============================================================
+// Weather control used by the Settings menu: 'auto' resumes the Markov chain,
+// a state id (0-3) forces it and applies the look immediately.
+callbacks.setWeather = (val) => {
+  if (val === 'auto') { weatherForceState(-1); return; }
+  const id = parseInt(val, 10);
+  if (id >= 0 && id <= 3) { weatherForceState(id); setCloudState(id); }
+};
+initSettings();
+
+// ============================================================
 // Wire up UI buttons (module scripts are deferred — DOM is ready)
 // ============================================================
 document.getElementById('weatherSelect').addEventListener('change', (e) => {
@@ -541,11 +554,23 @@ for (let i = 0; i < wPos.count; i++) {
 // ANIMATE — Main render loop
 // ============================================================
 let _lastAnimateTime = -1;
+let _frameN = 0;
 function animate() {
   requestAnimationFrame(animate);
+  // Pause all work while hidden (covered window / minimized). The day/night cycle
+  // is clock-driven, so it snaps back to correct the moment we're visible again.
+  if (gfxRuntime.pauseHidden && document.hidden) return;
   const t = clock.getElapsedTime();
+  // Frame-rate cap (Settings → Graphics). Skip the whole update+render until the
+  // interval elapses; everything below is time-based (waves use absolute t, the
+  // day/night cycle reads the device clock, sims use dt) so a lower cadence stays
+  // correct — just coarser. frameInterval 0 = uncapped (full display refresh).
+  const fi = gfxRuntime.frameInterval;
+  if (fi > 0 && _lastAnimateTime >= 0 && t - _lastAnimateTime < fi) return;
   const dt = _lastAnimateTime < 0 ? 0 : t - _lastAnimateTime;
   _lastAnimateTime = t;
+  _frameN++;
+  if (dt > 0) gfxRuntime.fps = gfxRuntime.fps ? gfxRuntime.fps * 0.9 + (1 / dt) * 0.1 : 1 / dt;
 
   // INTEGRATION: Day/night cycle update — drives all time-of-day visuals
   dnc_update(t);
@@ -582,7 +607,7 @@ function animate() {
        + Math.sin(y * 3.0 + t * 7.0) * 0.015) * rainRipple
     );
   }
-  wPos.needsUpdate=true; waterGeo.computeVertexNormals();
+  wPos.needsUpdate=true; if (!gfxRuntime.throttleNormals || (_frameN & 1) === 0) waterGeo.computeVertexNormals();
 
   // Shore foam — brighten near-shore vertices toward white based on wave crest
   {
@@ -616,7 +641,7 @@ function animate() {
     );
   }
   spPos.needsUpdate = true;
-  sunSpecPlane.geometry.computeVertexNormals();
+  if (!gfxRuntime.throttleNormals || (_frameN & 1) === 0) sunSpecPlane.geometry.computeVertexNormals();
   sunSpecMat.uniforms.uTime.value = t;
   sunSpecMat.uniforms.uCamPos.value.copy(camera.position);
 
@@ -635,7 +660,7 @@ function animate() {
       );
     }
     mpPos.needsUpdate = true;
-    moonSpecPlane.geometry.computeVertexNormals();
+    if (!gfxRuntime.throttleNormals || (_frameN & 1) === 0) moonSpecPlane.geometry.computeVertexNormals();
     moonSpecMat.uniforms.uTime.value = t;
     moonSpecMat.uniforms.uCamPos.value.copy(camera.position);
   }

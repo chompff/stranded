@@ -429,8 +429,8 @@
   }
 </style>
 
-  <script type="module" crossorigin src="/assets/terrain-BFmnCi9n.js"></script>
-  <script type="module" crossorigin src="/assets/main-tMwQZmD5.js"></script>
+  <script type="module" crossorigin src="/assets/terrain-9blQKzco.js"></script>
+  <script type="module" crossorigin src="/assets/main-Ch8O6hTq.js"></script>
 </head>
 <body>
 
@@ -992,27 +992,7 @@
 
 <!-- Top-right HUD: music/ambient buttons + clock -->
 <div id="hud">
-<!-- Music/Ambient — left of the clock -->
-<div class="music-ui" id="musicUI">
-  <button class="music-btn" id="playBtn" title="Play/Pause" aria-label="Toggle music">
-    <span class="eq-bars">
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-    </span>
-    Music
-  </button>
-  <button class="music-btn" id="ambientBtn" title="Ambient Sound" aria-label="Toggle ambient audio">
-    <span class="eq-bars">
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-    </span>
-    Ambient
-  </button>
-</div>
+<!-- Music/Ambient buttons removed — replaced by the Settings gear (injected by settings.js) -->
 <!-- Real-time clock — right of the music/ambient buttons -->
 <div id="clock"></div>
 </div><!-- /#hud -->
@@ -1035,6 +1015,9 @@
 // ============================================================
 // MUSIC PLAYER — starts OFF, click button to toggle
 // ============================================================
+// Legacy Music/Ambient buttons removed — audio is now controlled by the Settings menu (settings.js).
+// Kept inert: the guard is false once the buttons are gone, so the dev calibration panels below still run.
+if (document.getElementById('playBtn')) {
 const audio = document.getElementById('bgMusic');
 const playBtn = document.getElementById('playBtn');
 audio.volume = 0.6;
@@ -1176,6 +1159,7 @@ if (!_devMode) {
   window.addEventListener('keydown', autoStartAmbient, { once: false });
   window.addEventListener('touchstart', autoStartAmbient, { once: false });
 }
+} // end legacy-audio guard (buttons removed; audio handled by settings.js)
 
 // Caustics calibration panel — collapse toggle
 document.getElementById('causticDbgHeader').addEventListener('click', () => {

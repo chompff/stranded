@@ -3,20 +3,29 @@
 // All modules import from here for shared scene references
 // ============================================================
 import * as THREE from 'three';
+import { initialPixelRatio, initialAntialias, frameInterval, loadSettings } from './settings-store.js';
 
 // --- Canvas & Renderer ---
 export const canvas = document.createElement('canvas');
 document.body.appendChild(canvas);
 
-export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+export const renderer = new THREE.WebGLRenderer({ canvas, antialias: initialAntialias() });
+renderer.setPixelRatio(initialPixelRatio());
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ReinhardToneMapping;
 renderer.toneMappingExposure = 2.0;
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = loadSettings().gfx.shadows;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.localClippingEnabled = true;
+
+// --- Runtime graphics knobs — written by Settings (settings.js), read by main.js each frame. ---
+export const gfxRuntime = {
+  frameInterval: frameInterval(),                                // seconds; 0 = uncapped
+  throttleNormals: loadSettings().gfx.waterNormals === 'throttled',
+  pauseHidden: !!loadSettings().gfx.pauseHidden,
+  fps: 0,                                                        // live-measured in main.js
+};
 
 // --- Scene ---
 export const scene = new THREE.Scene();
@@ -117,6 +126,7 @@ export const callbacks = {
   placeFlora: null,
   rebuildFormation: null,
   updateDragPreview: null,
+  setWeather: null,        // wired by main.js; called by settings.js
 };
 
 // --- Resize handler ---

@@ -484,9 +484,7 @@ function autoStartMusic() {
   window.removeEventListener('keydown', autoStartMusic);
   window.removeEventListener('touchstart', autoStartMusic);
 }
-window.addEventListener('pointerdown', autoStartMusic, { once: false });
-window.addEventListener('keydown', autoStartMusic, { once: false });
-window.addEventListener('touchstart', autoStartMusic, { once: false });
+// Auto-start removed — music is OFF by default, controlled by the Settings menu (settings.js).
 </script>
 
 <!-- Real-time clock — same device clock that drives the day/night cycle -->
@@ -770,9 +768,7 @@ function runGameScripts() {
     window.removeEventListener('keydown', autoStartAmbient);
     window.removeEventListener('touchstart', autoStartAmbient);
   }
-  window.addEventListener('pointerdown', autoStartAmbient);
-  window.addEventListener('keydown', autoStartAmbient);
-  window.addEventListener('touchstart', autoStartAmbient);
+  // Auto-start removed — ambient is OFF by default, controlled by the Settings menu (settings.js).
 
   // --- Task notification system ---
   window._notify = function(msg) {

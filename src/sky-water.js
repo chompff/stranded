@@ -3,6 +3,7 @@
 // ============================================================
 import * as THREE from 'three';
 import { scene, ISLAND_Z, ISLAND_RADIUS, OCEAN_FLOOR_Y, renderer, camera, buildState, HOME_BEACH_Z, ISLAND_SEED, terrainRefs } from './state.js';
+import { waterSegments, loadSettings } from './settings-store.js';
 
 // ============================================================
 // SKY — canvas gradient background + soft cloud texture on dome
@@ -322,7 +323,7 @@ scene.add(mistDome);
 // ============================================================
 const sunLight = new THREE.DirectionalLight(0xffe8c0, 2.5);
 sunLight.position.set(-15, 60, ISLAND_Z + 20);
-sunLight.castShadow = true;
+sunLight.castShadow = loadSettings().gfx.shadows;
 // Adaptive shadow quality: 1024 on mobile/tablet, 2048 on desktop
 // Mobile GPUs (WKWebView/Safari) are bottlenecked by shadow map fill rate
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -1352,7 +1353,8 @@ for (let i = 0; i < hgPos.count; i++) {
 // ============================================================
 // WATER SURFACE
 // ============================================================
-const waterGeo = new THREE.PlaneGeometry(1200, 1200, 80, 60);
+const [_wSegW, _wSegH] = waterSegments();  // Settings → Graphics → Water detail (low/high)
+const waterGeo = new THREE.PlaneGeometry(1200, 1200, _wSegW, _wSegH);
 // Vertex colors — radial gradient: shallow turquoise near island, deep blue at edges
 const waterColors = new Float32Array(waterGeo.attributes.position.count * 3);
 const wPositions = waterGeo.attributes.position;

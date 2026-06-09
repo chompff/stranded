@@ -11,7 +11,7 @@
 import { renderer, scene, resize, gfxRuntime, callbacks } from './state.js';
 import { sunLight } from './sky-water.js';
 import {
-  loadSettings, saveSettings, applyPreset, detectPreset, perfEstimate,
+  loadSettings, saveSettings, applyPreset, detectPreset,
 } from './settings-store.js';
 
 const WEATHER_OPTS = [
@@ -25,7 +25,7 @@ const WEATHER_OPTS = [
 let S = null;                 // the settings object (shared with the store)
 let _builtAA = false;         // antialias the renderer was constructed with
 let _builtDetail = 'high';    // water detail the geometry was built with
-let _panel = null, _wrap = null, _gauge = null, _fpsTimer = null;
+let _panel = null, _wrap = null, _gauge = null, _fpsTimer = null, _lastPollT = 0, _lastPollFrames = 0;
 
 // ── Audio state ─────────────────────────────────────────────
 let _bgMusic = null, _ambAbove = null, _ambBelow = null;
@@ -80,7 +80,7 @@ function applyAudioState() {
   // Music
   if (_bgMusic) {
     if (S.music) _bgMusic.play().catch(() => {});
-    else _bgMusic.pause();
+    else { _bgMusic.pause(); try { _bgMusic.currentTime = 0; } catch (e) {} }
   }
   // Ambient
   if (_ambAbove && _ambBelow) {
@@ -189,7 +189,7 @@ function buildUI() {
             <text id="sipEst" x="60" y="50" text-anchor="middle" fill="#fff" font-size="20" font-weight="700">0%</text>
             <text id="sipFps" x="60" y="72" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">– fps</text>
           </svg>
-          <div class="sip-gcap">estimated system load</div>
+          <div class="sip-gcap">system load</div>
         </div>
         <div class="sip-row"><span>Frame rate</span>
           <select class="sip-sel" data-g="frameRate">
@@ -297,6 +297,7 @@ function togglePanel(force) {
   if (_wrap) _wrap.classList.toggle('sip-panel-open', open);
   if (open) {
     updateGauge();
+    _lastPollT = 0;
     pollFps();
     _fpsTimer = setInterval(pollFps, 500);
   } else if (_fpsTimer) {
@@ -333,16 +334,18 @@ function syncControls() {
 const ARC_LEN = 157.1; // π · r (r=50) for the semicircle path
 function updateGauge() {
   if (!_gauge) return;
-  const est = perfEstimate(S.gfx);
-  _gauge.arc.style.strokeDashoffset = String(ARC_LEN * (1 - est / 100));
-  _gauge.arc.style.stroke = est < 40 ? '#5fd38a' : est < 70 ? '#e6c14a' : '#e5705a';
-  _gauge.est.textContent = est + '%';
+  // Live, MEASURED load — window.__sipPerf is written each frame by main.js as
+  // (this machine's per-frame work time / frame budget). Reflects YOUR hardware,
+  // not an abstract estimate: a fast GPU reads low, a struggling one climbs.
+  const p = window.__sipPerf || { loadPct: 0, fps: 0 };
+  const load = Math.max(0, Math.min(100, p.loadPct || 0));
+  _gauge.arc.style.strokeDashoffset = String(ARC_LEN * (1 - load / 100));
+  _gauge.arc.style.stroke = load < 40 ? '#5fd38a' : load < 70 ? '#e6c14a' : '#e5705a';
+  _gauge.est.textContent = load + '%';
+  const fps = Math.round(p.fps || 0);
+  _gauge.fps.textContent = fps > 0 ? '≈ ' + fps + ' fps' : '– fps';
 }
-function pollFps() {
-  if (!_gauge) return;
-  const fps = gfxRuntime.fps || 0;
-  _gauge.fps.textContent = fps > 0 ? '≈ ' + Math.round(fps) + ' fps' : '– fps';
-}
+function pollFps() { updateGauge(); }
 
 // ============================================================
 // Styles

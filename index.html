@@ -394,17 +394,15 @@
 <!-- Black curtain — hides scene until first frame renders -->
 <div class="scene-curtain" id="sceneCurtain"></div>
 
-<!-- Landing Overlay -->
-<div class="landing-overlay">
-  <h1 class="landing-title">STRANDED<br class="mobile-break"> IN PARADISE</h1>
-  <p class="landing-subtitle">Get a message in a bottle when it's ready:</p>
+<!-- Landing splash deleted — this is a persistent wallpaper; the root boots straight
+     into the scene. The hidden signup form is retained only because landing.js wires
+     it on load; it never displays. -->
+<div class="landing-overlay" style="display:none">
   <form class="landing-form" id="signupForm">
-    <input class="landing-input" id="emailInput" type="email" placeholder="your@email.com" required autocomplete="email">
+    <input class="landing-input" id="emailInput" type="email" placeholder="your@email.com" autocomplete="email">
     <button class="landing-submit" id="submitBtn" type="submit">Notify me ☀️</button>
   </form>
   <div id="formMessage"></div>
-  <p class="landing-or">or</p>
-  <a class="landing-play" id="playNowBtn" href="game.html?guest=1">Enter paradise now 🌴</a>
 </div>
 
 <!-- Play transition cover -->
@@ -413,6 +411,16 @@
 <!-- Background Music -->
 <audio id="bgMusic" loop preload="auto">
   <source src="assets/audio/ambient.mp3" type="audio/mpeg">
+</audio>
+
+<!-- Ambient audio (above/below water). Static <audio> tags — like #bgMusic above —
+     so Vite rewrites these source paths to the hashed build assets. Owned by the
+     Settings menu (settings.js). (Creating them in JS left the path un-rewritten → 404.) -->
+<audio id="ambAbove" loop preload="auto">
+  <source src="assets/audio/ambient-above.mp3" type="audio/mpeg">
+</audio>
+<audio id="ambBelow" loop preload="auto">
+  <source src="assets/audio/ambient-below.mp3" type="audio/mpeg">
 </audio>
 
 <!-- Top-right HUD (music/ambient + clock). Hidden on landing, revealed in paradise. -->
@@ -436,56 +444,9 @@
 <!-- Landing Page 3D Scene -->
 <script type="module" src="src/landing.js"></script>
 
-<!-- Music Player Script -->
-<script>
-const audio = document.getElementById('bgMusic');
-const playBtn = document.getElementById('playBtn');
-audio.volume = 0.6;
-audio.loop = true;
-let playing = false;
-let toggling = false;
-
-function toggle() {
-  if (toggling) return;
-  toggling = true;
-  setTimeout(() => toggling = false, 300);
-  if (!playing) {
-    audio.play().then(() => {
-      playing = true;
-      playBtn.classList.add('playing');
-    }).catch(() => {
-      setTimeout(() => {
-        audio.play().then(() => {
-          playing = true;
-          playBtn.classList.add('playing');
-        }).catch(() => {});
-      }, 100);
-    });
-  } else {
-    playing = false;
-    playBtn.classList.remove('playing');
-    audio.pause();
-  }
-}
-
-playBtn.addEventListener('pointerdown', toggle);
-playBtn.addEventListener('click', (e) => { e.preventDefault(); toggle(); });
-playBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggle(); });
-
-// Auto-start music on first user interaction
-function autoStartMusic() {
-  if (!playing) {
-    audio.play().then(() => {
-      playing = true;
-      playBtn.classList.add('playing');
-    }).catch(() => {});
-  }
-  window.removeEventListener('pointerdown', autoStartMusic);
-  window.removeEventListener('keydown', autoStartMusic);
-  window.removeEventListener('touchstart', autoStartMusic);
-}
-// Auto-start removed — music is OFF by default, controlled by the Settings menu (settings.js).
-</script>
+<!-- Music Player Script removed — audio is now owned solely by the Settings menu (settings.js),
+     which controls #bgMusic directly. Keeping a second controller here caused music to keep
+     playing after the toggle was switched off. -->
 
 <!-- Real-time clock — same device clock that drives the day/night cycle -->
 <script>
@@ -505,50 +466,25 @@ function autoStartMusic() {
 
 <!-- Play Now — seamless transition to game (no reload) -->
 <script type="module">
-document.getElementById('playNowBtn').addEventListener('click', function(e) {
-  e.preventDefault();
-  var overlay = document.querySelector('.landing-overlay');
-  var tiy = document.querySelector('.this-is-you');
-  var musicUI = document.getElementById('musicUI');
-
-  // 1) Slide overlay up, fade label + music button
-  overlay.classList.add('exiting');
-  if (tiy) tiy.style.opacity = '0';
-  if (musicUI) { musicUI.style.transition = 'opacity 0.5s'; musicUI.style.opacity = '0'; }
-
-  // 2) After overlay exits, clean up landing and boot the game
-  setTimeout(function() {
-    // Remove landing overlay from DOM entirely
-    overlay.remove();
-
-    // Don't stop landing render loop yet — keep it alive during
-    // the async import so there is no rendering gap.  main.js will
-    // call _landingCleanup itself right before starting its own loop.
-
-    // Set guest flag so game scripts know this is a guest session
-    history.replaceState(null, '', '?guest=1');
-
-    // Inject game DOM elements that main.js expects
-    injectGameDOM();
-
-    // Reveal the HUD (music/ambient + clock) — hidden on landing, shown in paradise
-    var hud = document.getElementById('hud');
-    if (hud) { hud.style.display = 'flex'; }
-    if (musicUI) { musicUI.style.opacity = '1'; }
-
-    // Tell main.js to smoothly transition the camera instead of teleporting
-    window._seamlessTransition = true;
-
-    // Dynamically import the game entry point — it shares the same
-    // state.js singleton (scene/renderer/camera) so the 3D world is
-    // already there; main.js just takes over the render loop.
-    import('./src/main.js').then(function() {
-      // Game is running — main.js started its own animate() loop
-    }).catch(function(err) {
-      console.error('Failed to load game:', err);
-    });
-  }, 900); // wait for overlay slide-up animation to finish
-});
+// Persistent wallpaper — boot straight into the scene on load (no splash, no click).
+(function bootWallpaper() {
+  // Keep the URL clean: force play mode unless ?dev=1 is explicitly present
+  // (this replaces the old ?guest=1 flag).
+  if (new URLSearchParams(location.search).get('dev') !== '1') {
+    try { sessionStorage.removeItem('sipDev'); } catch (e) {}
+  }
+  // Inject the game DOM elements main.js expects, then reveal the HUD (clock + gear).
+  injectGameDOM();
+  var hud = document.getElementById('hud');
+  if (hud) hud.style.display = 'flex';
+  // Smooth camera hand-off from the landing render to the game (no teleport).
+  window._seamlessTransition = true;
+  // Import the game entry — shares the state.js singleton (scene/renderer/camera),
+  // so the world is already there; main.js just takes over the render loop.
+  import('./src/main.js').catch(function(err) {
+    console.error('Failed to load game:', err);
+  });
+})();
 
 function injectGameDOM() {
   // --- Stub DOM elements that main.js references via getElementById ---
@@ -558,6 +494,7 @@ function injectGameDOM() {
   devUI.style.display = 'none';
   devUI.innerHTML = [
     '<div id="buildPanel" style="display:none;"></div>',
+    '<span id="seedLabel"></span><button id="btnNewSeed"></button>',
     '<div id="cloudToggle" style="display:none;">',
       '<button id="btnRotLeft"></button>',
       '<button id="btnTopDown"><span id="camLabel"></span></button>',
@@ -665,20 +602,9 @@ function injectGameDOM() {
   bar.style.display = 'flex';
   setTimeout(function() { bar.style.transform = 'translateY(0)'; }, 50);
 
-  // Ambient audio elements (game page has these, landing page doesn't)
-  var ambAbove = document.createElement('audio');
-  ambAbove.id = 'ambAbove';
-  ambAbove.loop = true;
-  ambAbove.preload = 'auto';
-  ambAbove.innerHTML = '<source src="assets/audio/ambient-above.mp3" type="audio/mpeg">';
-  document.body.appendChild(ambAbove);
-
-  var ambBelow = document.createElement('audio');
-  ambBelow.id = 'ambBelow';
-  ambBelow.loop = true;
-  ambBelow.preload = 'auto';
-  ambBelow.innerHTML = '<source src="assets/audio/ambient-below.mp3" type="audio/mpeg">';
-  document.body.appendChild(ambBelow);
+  // Ambient audio elements are now static <audio> tags in index.html (next to
+  // #bgMusic) so Vite rewrites their source paths to the hashed build assets.
+  // Creating them here via innerHTML left 'assets/audio/...' un-rewritten → 404.
 
   // Add ambient button to music UI
   var musicUI = document.getElementById('musicUI');

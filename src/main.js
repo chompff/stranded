@@ -391,8 +391,16 @@ callbacks.setWeather = (val) => {
 initSettings();
 
 // ============================================================
-// Wire up UI buttons (module scripts are deferred — DOM is ready)
+// Wire up DEV UI buttons (module scripts are deferred — DOM is ready)
+// ------------------------------------------------------------
+// Everything in this block (weather/moon overrides, camera + build buttons,
+// seed editor, day/night slider) is a DEV-ONLY tool. In play/wallpaper mode
+// the dev toolbar isn't in the DOM, so each getElementById(...) returns null
+// and the chained .addEventListener / .value would throw — killing the
+// ecosystem init and render loop further down. Gate the whole thing on
+// isDev() so the clean root URL boots without a dev toolbar present.
 // ============================================================
+if (isDev()) {
 document.getElementById('weatherSelect').addEventListener('change', (e) => {
   const val = e.target.value;
   if (val === 'auto') {
@@ -534,6 +542,7 @@ dncTimeLapseBtn.addEventListener('click', () => {
     dncSelect.value = 'auto';
   }
 });
+} // end if (isDev()) — dev-only UI wiring (skipped in play/wallpaper mode)
 
 // ============================================================
 // SHORE FOAM — precompute per-vertex shore proximity (one-time)
@@ -555,6 +564,8 @@ for (let i = 0; i < wPos.count; i++) {
 // ============================================================
 let _lastAnimateTime = -1;
 let _frameN = 0;
+let _frameWorkMs = 0;  // EMA of per-frame work time (ms) — drives the live, measured load gauge
+let _frameT0 = 0;
 function animate() {
   requestAnimationFrame(animate);
   // Pause all work while hidden (covered window / minimized). The day/night cycle
@@ -570,7 +581,9 @@ function animate() {
   const dt = _lastAnimateTime < 0 ? 0 : t - _lastAnimateTime;
   _lastAnimateTime = t;
   _frameN++;
+  gfxRuntime.frames = _frameN;
   if (dt > 0) gfxRuntime.fps = gfxRuntime.fps ? gfxRuntime.fps * 0.9 + (1 / dt) * 0.1 : 1 / dt;
+  _frameT0 = performance.now();   // start timing this frame's work (for the live load gauge)
 
   // INTEGRATION: Day/night cycle update — drives all time-of-day visuals
   dnc_update(t);
@@ -729,11 +742,8 @@ function animate() {
   let playerOffX = 0, playerOffZ = 0;
   if (!isDev()) {
     updatePlayer(dt);
-
-    // Camera follow: offset from home beach based on player movement from spawn
-    const pp = getPlayerWorldPosition();
-    playerOffX = pp.x;                         // spawn X = 0, so offset = position
-    playerOffZ = pp.z - (-155);                 // spawn Z = -155 (island edge)
+    // Persistent wallpaper: the camera stays parked on the lush home-beach view
+    // (no player-follow) so the reef + seagulls + fish are always framed.
   } else if (window._devPlayerOn) {
     // Dev mode with player toggled on — update player but don't move camera
     updatePlayer(dt);
@@ -1028,6 +1038,19 @@ function animate() {
   } else {
     renderer.render(scene, camera);
   }
+
+  // Live, hardware-relative load: this frame's actual work time vs the frame budget.
+  // A fast GPU/CPU reads low; a struggling one climbs toward 100%. Published on a
+  // window global so the Settings gauge reads it without any module-sharing surprises.
+  const _work = performance.now() - _frameT0;
+  _frameWorkMs = _frameWorkMs ? _frameWorkMs * 0.85 + _work * 0.15 : _work;
+  const _targetFps = gfxRuntime.frameInterval > 0 ? (1 / gfxRuntime.frameInterval) : 60;
+  window.__sipPerf = {
+    fps: Math.round(gfxRuntime.fps || 0),
+    // Floor at 1%: this runs only after a rendered frame, so the scene is always
+    // doing *some* work — a literal 0% would be misleading (per design note).
+    loadPct: Math.max(1, Math.min(100, Math.round(_frameWorkMs / (1000 / _targetFps) * 100))),
+  };
 }
 
 // ============================================================

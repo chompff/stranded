@@ -14,14 +14,14 @@ export const WALLPAPER = new URLSearchParams(window.location.search).get('wallpa
 
 // Graphics presets → granular values. "custom" = user-tweaked (not listed).
 export const GFX_PRESETS = {
-  low:    { frameRate: 24, resolution: 'half', shadows: false, pauseHidden: true,  waterNormals: 'throttled', antialias: false, waterDetail: 'low'  },
-  medium: { frameRate: 30, resolution: 'full', shadows: false, pauseHidden: true,  waterNormals: 'smooth',    antialias: false, waterDetail: 'high' },
+  low:    { frameRate: 24, resolution: 'half', shadows: false, pauseHidden: false,  waterNormals: 'throttled', antialias: false, waterDetail: 'low'  },
+  medium: { frameRate: 30, resolution: 'full', shadows: false, pauseHidden: false,  waterNormals: 'smooth',    antialias: false, waterDetail: 'high' },
   high:   { frameRate: 60, resolution: 'full', shadows: true,  pauseHidden: false, waterNormals: 'smooth',    antialias: true,  waterDetail: 'high' },
 };
 export const GFX_KEYS = ['frameRate', 'resolution', 'shadows', 'pauseHidden', 'waterNormals', 'antialias', 'waterDetail'];
 
 function defaults() {
-  const preset = WALLPAPER ? 'low' : 'high';
+  const preset = 'low'; // persistent wallpaper — light by default; raise quality via the gear
   return {
     music: false,        // OFF by default
     ambient: false,      // OFF by default

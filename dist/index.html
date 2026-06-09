@@ -388,25 +388,23 @@
     100% { transform: translateY(105vh) translateX(var(--drift)) rotate(var(--spin)); opacity: 0; }
   }
 </style>
-  <script type="module" crossorigin src="/assets/main-Drb4RxuN.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/terrain-9blQKzco.js">
+  <script type="module" crossorigin src="/assets/main-DzvwIfcJ.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/terrain-DEtjczMd.js">
 </head>
 <body>
 
 <!-- Black curtain — hides scene until first frame renders -->
 <div class="scene-curtain" id="sceneCurtain"></div>
 
-<!-- Landing Overlay -->
-<div class="landing-overlay">
-  <h1 class="landing-title">STRANDED<br class="mobile-break"> IN PARADISE</h1>
-  <p class="landing-subtitle">Get a message in a bottle when it's ready:</p>
+<!-- Landing splash deleted — this is a persistent wallpaper; the root boots straight
+     into the scene. The hidden signup form is retained only because landing.js wires
+     it on load; it never displays. -->
+<div class="landing-overlay" style="display:none">
   <form class="landing-form" id="signupForm">
-    <input class="landing-input" id="emailInput" type="email" placeholder="your@email.com" required autocomplete="email">
+    <input class="landing-input" id="emailInput" type="email" placeholder="your@email.com" autocomplete="email">
     <button class="landing-submit" id="submitBtn" type="submit">Notify me ☀️</button>
   </form>
   <div id="formMessage"></div>
-  <p class="landing-or">or</p>
-  <a class="landing-play" id="playNowBtn" href="game.html?guest=1">Enter paradise now 🌴</a>
 </div>
 
 <!-- Play transition cover -->
@@ -415,6 +413,16 @@
 <!-- Background Music -->
 <audio id="bgMusic" loop preload="auto">
   <source src="/assets/ambient-D9Dzqtft.mp3" type="audio/mpeg">
+</audio>
+
+<!-- Ambient audio (above/below water). Static <audio> tags — like #bgMusic above —
+     so Vite rewrites these source paths to the hashed build assets. Owned by the
+     Settings menu (settings.js). (Creating them in JS left the path un-rewritten → 404.) -->
+<audio id="ambAbove" loop preload="auto">
+  <source src="/assets/ambient-above-DV28blcY.mp3" type="audio/mpeg">
+</audio>
+<audio id="ambBelow" loop preload="auto">
+  <source src="/assets/ambient-below-CVfZ0yyv.mp3" type="audio/mpeg">
 </audio>
 
 <!-- Top-right HUD (music/ambient + clock). Hidden on landing, revealed in paradise. -->
@@ -437,56 +445,9 @@
 
 <!-- Landing Page 3D Scene -->
 
-<!-- Music Player Script -->
-<script>
-const audio = document.getElementById('bgMusic');
-const playBtn = document.getElementById('playBtn');
-audio.volume = 0.6;
-audio.loop = true;
-let playing = false;
-let toggling = false;
-
-function toggle() {
-  if (toggling) return;
-  toggling = true;
-  setTimeout(() => toggling = false, 300);
-  if (!playing) {
-    audio.play().then(() => {
-      playing = true;
-      playBtn.classList.add('playing');
-    }).catch(() => {
-      setTimeout(() => {
-        audio.play().then(() => {
-          playing = true;
-          playBtn.classList.add('playing');
-        }).catch(() => {});
-      }, 100);
-    });
-  } else {
-    playing = false;
-    playBtn.classList.remove('playing');
-    audio.pause();
-  }
-}
-
-playBtn.addEventListener('pointerdown', toggle);
-playBtn.addEventListener('click', (e) => { e.preventDefault(); toggle(); });
-playBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggle(); });
-
-// Auto-start music on first user interaction
-function autoStartMusic() {
-  if (!playing) {
-    audio.play().then(() => {
-      playing = true;
-      playBtn.classList.add('playing');
-    }).catch(() => {});
-  }
-  window.removeEventListener('pointerdown', autoStartMusic);
-  window.removeEventListener('keydown', autoStartMusic);
-  window.removeEventListener('touchstart', autoStartMusic);
-}
-// Auto-start removed — music is OFF by default, controlled by the Settings menu (settings.js).
-</script>
+<!-- Music Player Script removed — audio is now owned solely by the Settings menu (settings.js),
+     which controls #bgMusic directly. Keeping a second controller here caused music to keep
+     playing after the toggle was switched off. -->
 
 <!-- Real-time clock — same device clock that drives the day/night cycle -->
 <script>

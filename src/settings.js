@@ -11,7 +11,7 @@
 import { renderer, scene, resize, gfxRuntime, callbacks } from './state.js';
 import { sunLight } from './sky-water.js';
 import {
-  loadSettings, saveSettings, applyPreset, detectPreset,
+  loadSettings, saveSettings, applyPreset, detectPreset, WALLPAPER,
 } from './settings-store.js';
 // Single source of truth for the version stamp (bottom of the panel):
 // package.json's "version" — bumped on every /ship-it (see CLAUDE.md).
@@ -36,6 +36,12 @@ let _ambVolA = 0, _ambVolB = 0, _ambRaf = null;
 
 export function initSettings() {
   S = loadSettings();
+  // Wallpaper boots are born silent: on the wallpaper page (root, or any
+  // page with ?wallpaper=1) saved audio toggles are ignored at startup.
+  // The gear still works for the session — but a desktop wallpaper can
+  // never wake up with sound (e.g. after stray forwarded clicks toggled
+  // audio in a previous run).
+  if (window._isWallpaper || WALLPAPER) { S.music = false; S.ambient = false; }
   _builtAA = !!S.gfx.antialias;
   _builtDetail = S.gfx.waterDetail;
 
@@ -164,7 +170,7 @@ function buildUI() {
       <div class="sip-sec">
         <div class="sip-h">Weather</div>
         <div class="sip-row"><span>Sky</span>
-          <select class="sip-sel" id="sipWeather">${WEATHER_OPTS.map(o => `<option value="${o.v}">${o.label}</option>`).join('')}</select>
+          <button type="button" class="sip-cyc" id="sipWeather"></button>
         </div>
       </div>
       <div class="sip-sec">
@@ -180,12 +186,7 @@ function buildUI() {
       <div class="sip-sec">
         <div class="sip-h">Graphics</div>
         <div class="sip-row"><span>Quality</span>
-          <select class="sip-sel" id="sipPreset">
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="custom">Custom</option>
-          </select>
+          <button type="button" class="sip-cyc" id="sipPreset"></button>
         </div>
         <div class="sip-gauge" id="sipGauge" title="Estimated share of this device's total CPU the game is using — the dial fills toward the 5% wallpaper budget.">
           <svg viewBox="0 0 120 78" width="100%" height="78">
@@ -199,19 +200,17 @@ function buildUI() {
         <button class="sip-scan" id="sipScan" data-tip="Benchmarks each quality preset on this device for a few seconds and keeps the best one that stays under 5% of total CPU.">Scan this device</button>
         <div id="sipCustomRows">
           <div class="sip-row"><span>Frame rate</span>
-            <select class="sip-sel" data-g="frameRate">
-              <option value="24">24 fps</option><option value="30">30 fps</option><option value="60">60 fps</option>
-            </select>
+            <button type="button" class="sip-cyc" data-g="frameRate"></button>
           </div>
           <div class="sip-row"><span>Resolution</span>
-            <select class="sip-sel" data-g="resolution"><option value="half">Half</option><option value="full">Full</option></select>
+            <button type="button" class="sip-cyc" data-g="resolution"></button>
           </div>
           <label class="sip-row"><span>Shadows</span><input type="checkbox" class="sip-sw" data-g="shadows"></label>
           <label class="sip-row"><span>Smooth water</span><input type="checkbox" class="sip-sw" data-g="waterNormals"></label>
           <label class="sip-row"><span>Pause when hidden</span><input type="checkbox" class="sip-sw" data-g="pauseHidden"></label>
           <label class="sip-row"><span>Antialiasing <em>reloads</em></span><input type="checkbox" class="sip-sw" data-g="antialias"></label>
           <div class="sip-row"><span>Water detail <em>reloads</em></span>
-            <select class="sip-sel" data-g="waterDetail"><option value="low">Low</option><option value="high">High</option></select>
+            <button type="button" class="sip-cyc" data-g="waterDetail"></button>
           </div>
         </div>
       </div>
@@ -254,23 +253,35 @@ function buildUI() {
     });
   });
 
-  // Granular graphics controls
-  wrap.querySelectorAll('[data-g]').forEach((el) => {
+  // Granular graphics controls. The dropdowns are single-click cycle buttons:
+  // native <select> popups don't receive forwarded clicks under wallpaper
+  // hosts (Lively/Wallpaper Engine), while plain buttons work everywhere.
+  function commitGfx(k, v) {
+    S.gfx[k] = v;
+    S.gfxPreset = 'custom'; // granular controls live in Custom mode
+    saveSettings();
+    syncControls();
+    updateGauge();
+    if (needsReload()) { location.reload(); return; }
+    applyGraphicsLive();
+  }
+  wrap.querySelectorAll('input[data-g]').forEach((el) => {
     el.addEventListener('change', () => {
       const k = el.dataset.g;
-      let v;
-      if (el.type === 'checkbox') {
-        v = (k === 'waterNormals') ? (el.checked ? 'smooth' : 'throttled') : el.checked;
-      } else {
-        v = (k === 'frameRate') ? parseInt(el.value, 10) : el.value;
-      }
-      S.gfx[k] = v;
-      S.gfxPreset = 'custom'; // granular controls live in Custom mode
-      saveSettings();
-      syncControls();
-      updateGauge();
-      if (needsReload()) { location.reload(); return; }
-      applyGraphicsLive();
+      commitGfx(k, (k === 'waterNormals') ? (el.checked ? 'smooth' : 'throttled') : el.checked);
+    });
+  });
+  const GFX_CYCLES = {
+    frameRate: [24, 30, 60],
+    resolution: ['half', 'full'],
+    waterDetail: ['low', 'high'],
+  };
+  wrap.querySelectorAll('button[data-g]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const k = el.dataset.g;
+      const opts = GFX_CYCLES[k];
+      const idx = opts.indexOf(S.gfx[k]);
+      commitGfx(k, opts[(idx + 1) % opts.length]);
     });
   });
 
@@ -288,18 +299,20 @@ function buildUI() {
     }
     const label = res.preset.charAt(0).toUpperCase() + res.preset.slice(1);
     scanBtn.textContent = label + ' · ≈' + res.sysPct.toFixed(1) + '% of total CPU';
-    // Antialias / water detail are fixed at construction — finish applying the
-    // chosen preset with a reload, same as picking it in the Quality dropdown.
-    if (needsReload()) { setTimeout(() => location.reload(), 1500); return; }
+    // Deliberately NO reload here: the chosen preset is saved + applied live,
+    // except antialias / water detail (fixed at construction) — those two
+    // silently complete on the next natural page load.
     setTimeout(() => {
       scanBtn.textContent = 'Scan this device';
       scanBtn.disabled = false;
     }, 4000);
   });
 
-  // Preset selector
-  wrap.querySelector('#sipPreset').addEventListener('change', (e) => {
-    const name = e.target.value;
+  // Quality cycle button: Low → Medium → High → Custom → Low …
+  const PRESET_CYCLE = ['low', 'medium', 'high', 'custom'];
+  wrap.querySelector('#sipPreset').addEventListener('click', () => {
+    const cur = (S.gfxPreset === 'custom') ? 'custom' : detectPreset();
+    const name = PRESET_CYCLE[(PRESET_CYCLE.indexOf(cur) + 1) % PRESET_CYCLE.length];
     if (name === 'custom') {
       // Unlock the granular controls, pre-populated with the current values —
       // nothing changes until the player tweaks a row.
@@ -315,11 +328,14 @@ function buildUI() {
     applyGraphicsLive();
   });
 
-  // Weather selector
-  wrap.querySelector('#sipWeather').addEventListener('change', (e) => {
-    S.weather = e.target.value === 'auto' ? 'auto' : parseInt(e.target.value, 10);
+  // Weather cycle button: Auto → Clear → Cloudy → Mist → Rain → Auto …
+  wrap.querySelector('#sipWeather').addEventListener('click', () => {
+    const idx = WEATHER_OPTS.findIndex(o => String(o.v) === String(S.weather));
+    const next = WEATHER_OPTS[(idx + 1) % WEATHER_OPTS.length];
+    S.weather = next.v === 'auto' ? 'auto' : parseInt(next.v, 10);
     saveSettings();
     applyWeather();
+    syncControls();
   });
 
   syncControls();
@@ -348,20 +364,21 @@ function syncControls() {
   root.querySelector('[data-u="showTime"]').checked = S.showTime !== false;
   root.querySelector('[data-u="hideGear"]').checked = !!S.hideGear;
   const g = S.gfx;
-  root.querySelector('[data-g="frameRate"]').value = String(g.frameRate);
-  root.querySelector('[data-g="resolution"]').value = g.resolution;
+  root.querySelector('[data-g="frameRate"]').textContent = g.frameRate + ' fps';
+  root.querySelector('[data-g="resolution"]').textContent = g.resolution === 'half' ? 'Half' : 'Full';
   root.querySelector('[data-g="shadows"]').checked = !!g.shadows;
   root.querySelector('[data-g="waterNormals"]').checked = (g.waterNormals === 'smooth');
   root.querySelector('[data-g="pauseHidden"]').checked = !!g.pauseHidden;
   root.querySelector('[data-g="antialias"]').checked = !!g.antialias;
-  root.querySelector('[data-g="waterDetail"]').value = g.waterDetail;
-  const presetSel = root.querySelector('#sipPreset');
+  root.querySelector('[data-g="waterDetail"]').textContent = g.waterDetail === 'low' ? 'Low' : 'High';
+  const presetBtn = root.querySelector('#sipPreset');
   const choice = (S.gfxPreset === 'custom') ? 'custom' : detectPreset();
-  presetSel.value = choice;
+  presetBtn.textContent = choice.charAt(0).toUpperCase() + choice.slice(1);
   // Granular rows are Custom-only — named presets keep the panel compact.
   const customRows = root.querySelector('#sipCustomRows');
   if (customRows) customRows.style.display = (choice === 'custom') ? '' : 'none';
-  root.querySelector('#sipWeather').value = String(S.weather);
+  const wOpt = WEATHER_OPTS.find(o => String(o.v) === String(S.weather));
+  root.querySelector('#sipWeather').textContent = wOpt ? wOpt.label : 'Auto';
 }
 
 // ============================================================
@@ -513,6 +530,25 @@ function injectStyles() {
   }
   .sip-scan:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
   .sip-scan:disabled { opacity: 0.6; cursor: default; }
+  /* Cycle buttons — wallpaper-safe replacement for <select> dropdowns:
+     click advances to the next option, so there is no popup to lose
+     forwarded clicks in (Lively / Wallpaper Engine). */
+  .sip-cyc {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(0,0,0,0.35);
+    color: #fff;
+    border-radius: 10px;
+    padding: 7px 12px;
+    min-width: 92px;
+    font: 600 12px/1 system-ui, sans-serif;
+    text-align: center;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .sip-cyc::after { content: ' ›'; opacity: 0.55; }
+  .sip-cyc:hover { background: rgba(255,255,255,0.12); }
   /* Custom tooltip (styled, replaces the native title bubble) */
   .sip-scan::after {
     content: attr(data-tip);

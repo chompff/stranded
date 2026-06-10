@@ -41,55 +41,7 @@
     font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', 'Segoe Print', cursive;
     margin: 0 -0.05em;
   }
-  /* ── Music UI (in the HUD row, left of the clock) ── */
-  .music-ui {
-    display: flex;
-    gap: 8px;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: manipulation;
-  }
-  .music-btn {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 8px 16px;
-    border: 2px solid rgba(255,255,255,0.6);
-    border-radius: 20px;
-    background: rgba(0,0,0,0.3);
-    color: #fff;
-    font: 600 13px/1 system-ui, sans-serif;
-    cursor: url('/assets/cursor-BwDtz9__.svg') 1 1, pointer !important;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    -webkit-tap-highlight-color: transparent;
-    transition: all 0.2s;
-    pointer-events: all !important;
-  }
-  .music-btn:hover { background: rgba(0,0,0,0.5); }
-  .music-btn:active { transform: scale(0.95); }
-  .music-btn.playing {
-    background: rgba(255,255,255,0.85);
-    color: #1a1a2e;
-    border-color: #fff;
-  }
-  /* Equalizer bars inside button */
-  .eq-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
-  .eq-bar {
-    width: 3px;
-    background: currentColor;
-    border-radius: 1px;
-    transition: height 0.15s ease;
-  }
-  .music-btn:not(.playing) .eq-bar { height: 4px !important; }
-  .music-btn.playing .eq-bar { animation: eqBounce 1s ease-in-out infinite alternate; }
-  .music-btn.playing .eq-bar:nth-child(1) { animation-duration: 0.8s; animation-delay: -0.2s; }
-  .music-btn.playing .eq-bar:nth-child(2) { animation-duration: 1.1s; animation-delay: -0.5s; }
-  .music-btn.playing .eq-bar:nth-child(3) { animation-duration: 0.9s; animation-delay: -0.8s; }
-  .music-btn.playing .eq-bar:nth-child(4) { animation-duration: 1.2s; animation-delay: -0.3s; }
-  @keyframes eqBounce {
-    0%   { height: 4px; }
-    50%  { height: 14px; }
-    100% { height: 6px; }
-  }
+  /* Legacy Music UI styles removed — audio is owned by the Settings menu (settings.js). */
 
 
   /* Cloud toggle (dev) */
@@ -429,8 +381,8 @@
   }
 </style>
 
-  <script type="module" crossorigin src="/assets/terrain-DEtjczMd.js"></script>
-  <script type="module" crossorigin src="/assets/main-DYXCbkDt.js"></script>
+  <script type="module" crossorigin src="/assets/terrain-D5SZiOld.js"></script>
+  <script type="module" crossorigin src="/assets/main-eZR6qja6.js"></script>
 </head>
 <body>
 
@@ -1012,154 +964,7 @@
 </script>
 
 <script>
-// ============================================================
-// MUSIC PLAYER — starts OFF, click button to toggle
-// ============================================================
-// Legacy Music/Ambient buttons removed — audio is now controlled by the Settings menu (settings.js).
-// Kept inert: the guard is false once the buttons are gone, so the dev calibration panels below still run.
-if (document.getElementById('playBtn')) {
-const audio = document.getElementById('bgMusic');
-const playBtn = document.getElementById('playBtn');
-audio.volume = 0.6;
-audio.loop = true;
-let playing = false;
-let toggling = false;
-
-function toggle() {
-  if (toggling) return;
-  toggling = true;
-  setTimeout(() => toggling = false, 300);
-  
-  if (!playing) {
-    audio.play().then(() => {
-      playing = true;
-      playBtn.classList.add('playing');
-    }).catch(() => {
-      setTimeout(() => {
-        audio.play().then(() => {
-          playing = true;
-          playBtn.classList.add('playing');
-        }).catch(() => {});
-      }, 100);
-    });
-  } else {
-    playing = false;
-    playBtn.classList.remove('playing');
-    audio.pause();
-  }
-}
-
-// Listen to multiple event types for maximum compatibility
-playBtn.addEventListener('pointerdown', toggle);
-playBtn.addEventListener('click', (e) => { e.preventDefault(); toggle(); });
-playBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggle(); });
-
-// Auto-start music on first user interaction (browsers require gesture)
-// In dev mode, music only starts via the music button — no auto-play on random clicks
-const _devMode = new URLSearchParams(window.location.search).get('dev') === '1'
-  || sessionStorage.getItem('sipDev') === '1';
-if (!_devMode) {
-  function autoStartMusic() {
-    if (!playing) {
-      audio.play().then(() => {
-        playing = true;
-        playBtn.classList.add('playing');
-      }).catch(() => {});
-    }
-    window.removeEventListener('pointerdown', autoStartMusic);
-    window.removeEventListener('keydown', autoStartMusic);
-    window.removeEventListener('touchstart', autoStartMusic);
-  }
-  window.addEventListener('pointerdown', autoStartMusic, { once: false });
-  window.addEventListener('keydown', autoStartMusic, { once: false });
-  window.addEventListener('touchstart', autoStartMusic, { once: false });
-}
-
-// ============================================================
-// AMBIENT AUDIO — above/below water crossfade
-// ============================================================
-const ambAbove = document.getElementById('ambAbove');
-const ambBelow = document.getElementById('ambBelow');
-const ambientBtn = document.getElementById('ambientBtn');
-ambAbove.volume = 0;
-ambBelow.volume = 0;
-let ambientPlaying = false;
-let ambientToggling = false;
-let ambAboveVol = 0;
-let ambBelowVol = 0;
-let ambRafId = null;
-
-function ambientCrossfadeLoop() {
-  if (!ambientPlaying) return;
-  const underwater = window._isPlayerUnderwater ? window._isPlayerUnderwater() : false;
-  const aboveTarget = underwater ? 0.0 : 0.35;
-  const belowTarget = underwater ? 0.35 : 0.0;
-  ambAboveVol += (aboveTarget - ambAboveVol) * 0.05;
-  ambBelowVol += (belowTarget - ambBelowVol) * 0.05;
-  // Snap to target when very close to avoid endless tiny lerps
-  if (Math.abs(ambAboveVol - aboveTarget) < 0.002) ambAboveVol = aboveTarget;
-  if (Math.abs(ambBelowVol - belowTarget) < 0.002) ambBelowVol = belowTarget;
-  ambAbove.volume = ambAboveVol;
-  ambBelow.volume = ambBelowVol;
-  ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
-}
-
-function toggleAmbient() {
-  if (ambientToggling) return;
-  ambientToggling = true;
-  setTimeout(() => ambientToggling = false, 300);
-
-  if (!ambientPlaying) {
-    ambAboveVol = 0;
-    ambBelowVol = 0;
-    ambAbove.volume = 0;
-    ambBelow.volume = 0;
-    ambAbove.play().catch(() => {});
-    ambBelow.play().catch(() => {});
-    ambientPlaying = true;
-    ambientBtn.classList.add('playing');
-    ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
-  } else {
-    ambientPlaying = false;
-    ambientBtn.classList.remove('playing');
-    if (ambRafId) { cancelAnimationFrame(ambRafId); ambRafId = null; }
-    ambAbove.pause();
-    ambBelow.pause();
-    ambAboveVol = 0;
-    ambBelowVol = 0;
-    ambAbove.volume = 0;
-    ambBelow.volume = 0;
-  }
-}
-
-ambientBtn.addEventListener('pointerdown', toggleAmbient);
-ambientBtn.addEventListener('click', (e) => { e.preventDefault(); toggleAmbient(); });
-ambientBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggleAmbient(); });
-
-// Auto-start ambient on first user interaction in play mode
-if (!_devMode) {
-  function autoStartAmbient() {
-    if (!ambientPlaying) {
-      ambAboveVol = 0;
-      ambBelowVol = 0;
-      ambAbove.volume = 0;
-      ambBelow.volume = 0;
-      ambAbove.play().then(() => {
-        ambBelow.play().catch(() => {});
-        ambientPlaying = true;
-        ambientBtn.classList.add('playing');
-        ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
-      }).catch(() => {});
-    }
-    window.removeEventListener('pointerdown', autoStartAmbient);
-    window.removeEventListener('keydown', autoStartAmbient);
-    window.removeEventListener('touchstart', autoStartAmbient);
-  }
-  window.addEventListener('pointerdown', autoStartAmbient, { once: false });
-  window.addEventListener('keydown', autoStartAmbient, { once: false });
-  window.addEventListener('touchstart', autoStartAmbient, { once: false });
-}
-} // end legacy-audio guard (buttons removed; audio handled by settings.js)
+// Legacy music/ambient player removed — audio is owned by the Settings menu (settings.js).
 
 // Caustics calibration panel — collapse toggle
 document.getElementById('causticDbgHeader').addEventListener('click', () => {

@@ -449,6 +449,10 @@
 <!-- Landing Page 3D Scene -->
 <script type="module" src="src/landing.js"></script>
 
+<!-- Conversion CTA + install modal + analytics — browser visitors only.
+     Self-gates out of wallpaper mode (?desktop / host listeners); see src/cta.js. -->
+<script type="module" src="src/cta.js"></script>
+
 <!-- Music Player Script removed — audio is now owned solely by the Settings menu (settings.js),
      which controls #bgMusic directly. Keeping a second controller here caused music to keep
      playing after the toggle was switched off. -->

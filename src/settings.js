@@ -36,6 +36,10 @@ let _ambVolA = 0, _ambVolB = 0, _ambRaf = null;
 
 export function initSettings() {
   S = loadSettings();
+  // One-time migration: the clock is hidden-by-default now (standard setting).
+  // Clears a legacy saved "on" once; the Interface toggle still works and
+  // sticks for anyone who deliberately re-enables it.
+  if (S.migClockOff !== 1) { S.migClockOff = 1; S.showTime = false; saveSettings(); }
   // Wallpaper boots are born silent: on the wallpaper page (root, or any
   // page with ?wallpaper=1) saved audio toggles are ignored at startup.
   // The gear still works for the session — but a desktop wallpaper can

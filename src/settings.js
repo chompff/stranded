@@ -80,6 +80,26 @@ function setupAudio() {
   if (_bgMusic) { _bgMusic.volume = 0.6; _bgMusic.loop = true; }
   if (_ambAbove) { _ambAbove.volume = 0; _ambAbove.loop = true; }
   if (_ambBelow) { _ambBelow.volume = 0; _ambBelow.loop = true; }
+
+  // ENFORCEMENT — the last word on playback. Chromium resumes media at the
+  // ELEMENT level when a frozen page thaws (and wallpaper hosts / hardware
+  // media keys can do the same), bypassing our state entirely: the music
+  // came back after window switches in Lively even though S.music was false
+  // and the toggle showed off. So: if ANYTHING starts playback while the
+  // matching toggle is off, kill it on the spot. A legitimate toggle sets
+  // S.music/S.ambient true BEFORE calling play(), so it passes untouched.
+  const guardPlayback = (el, isOn) => {
+    if (!el) return;
+    el.addEventListener('play', () => {
+      if (!isOn()) {
+        el.pause();
+        try { el.currentTime = 0; } catch (e) {}
+      }
+    });
+  };
+  guardPlayback(_bgMusic, () => !!(S && S.music));
+  guardPlayback(_ambAbove, () => !!(S && S.ambient));
+  guardPlayback(_ambBelow, () => !!(S && S.ambient));
 }
 
 function ambientCrossfade() {

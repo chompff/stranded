@@ -315,67 +315,59 @@
     margin: 0 -0.05em;
   }
 
-  /* ── Music UI (in the HUD row, left of the clock) ── */
-  .music-ui {
-    display: flex;
-    gap: 8px;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: manipulation;
-  }
-  .music-btn {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 8px 16px;
-    border: 2px solid rgba(255,255,255,0.6);
-    border-radius: 20px;
-    background: rgba(0,0,0,0.3);
-    color: #fff;
-    font: 600 13px/1 system-ui, sans-serif;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    cursor: url('assets/cursor.svg') 1 1, pointer !important;
-    transition: all 0.2s;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-  .music-btn:hover { background: rgba(0,0,0,0.5); }
-  .music-btn:active { transform: scale(0.95); }
-  .music-btn.playing {
-    background: rgba(255,255,255,0.85);
-    color: #1a1a2e;
-    border-color: #fff;
-  }
-  .eq-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
-  .eq-bar {
-    width: 3px;
-    background: currentColor;
-    border-radius: 1px;
-    transition: height 0.15s ease;
-  }
-  .music-btn:not(.playing) .eq-bar { height: 4px !important; }
-  .music-btn.playing .eq-bar { animation: eqBounce 1s ease-in-out infinite alternate; }
-  .music-btn.playing .eq-bar:nth-child(1) { animation-duration: 0.8s; animation-delay: -0.2s; }
-  .music-btn.playing .eq-bar:nth-child(2) { animation-duration: 1.1s; animation-delay: -0.5s; }
-  .music-btn.playing .eq-bar:nth-child(3) { animation-duration: 0.9s; animation-delay: -0.8s; }
-  .music-btn.playing .eq-bar:nth-child(4) { animation-duration: 1.2s; animation-delay: -0.3s; }
-  @keyframes eqBounce {
-    0%   { height: 4px; }
-    50%  { height: 14px; }
-    100% { height: 6px; }
-  }
-
   /* ── Animations ── */
-  /* ── Scene Loading Curtain ── */
+  /* ── Scene Loading Curtain — white cover that holds until the game
+     module + all tracked assets are loaded (lifted by landing.js) ── */
   .scene-curtain {
     position: fixed;
     inset: 0;
     z-index: 999;
-    background: #000;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     transition: opacity 1.5s ease-out;
     pointer-events: none;
   }
   .scene-curtain.lifted {
     opacity: 0;
+  }
+  .curtain-title {
+    font-family: 'Tahiti', serif;
+    font-size: clamp(2rem, 7vw, 3.6rem);
+    color: #c5beb0;
+    letter-spacing: 0.08em;
+    text-align: center;
+    line-height: 1.1;
+    padding: 0 24px;
+    animation: curtainBreathe 2.6s ease-in-out infinite;
+  }
+  @keyframes curtainBreathe {
+    0%, 100% { opacity: 0.45; }
+    50%      { opacity: 1; }
+  }
+  /* Pastel lagoon loading bar — fill driven by landing.js */
+  .curtain-bar {
+    width: min(260px, 56vw);
+    height: 4px;
+    margin-top: 26px;
+    border-radius: 999px;
+    background: rgba(110, 190, 182, 0.18);
+    overflow: hidden;
+  }
+  .curtain-bar-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #bfe9e4, #8fd8cf);
+    transition: width 0.35s ease;
+  }
+  .curtain-status {
+    margin-top: 12px;
+    font: 400 12px/1 system-ui, -apple-system, sans-serif;
+    color: #c5beb0;
+    letter-spacing: 0.04em;
   }
 
   @keyframes fadeInUp {
@@ -391,8 +383,13 @@
 </head>
 <body>
 
-<!-- Black curtain — hides scene until first frame renders -->
-<div class="scene-curtain" id="sceneCurtain"></div>
+<!-- White curtain — hides the scene until the game module + assets are loaded.
+     landing.js lifts it (asset-idle gate + 15s safety cap). -->
+<div class="scene-curtain" id="sceneCurtain">
+  <div class="curtain-title">Stranded in Paradise</div>
+  <div class="curtain-bar"><div class="curtain-bar-fill" id="curtainBarFill"></div></div>
+  <div class="curtain-status" id="curtainStatus">loading paradise&hellip;</div>
+</div>
 
 <!-- Landing splash deleted — this is a persistent wallpaper; the root boots straight
      into the scene. The hidden signup form is retained only because landing.js wires
@@ -423,21 +420,9 @@
   <source src="assets/audio/ambient-below.mp3" type="audio/mpeg">
 </audio>
 
-<!-- Top-right HUD (music/ambient + clock). Hidden on landing, revealed in paradise. -->
+<!-- Top-right HUD (clock; the settings gear is inserted by settings.js).
+     Legacy Music/Ambient buttons removed — audio lives in the Settings menu. -->
 <div id="hud" style="display:none">
-<!-- Music/Ambient — left of the clock -->
-<div class="music-ui" id="musicUI">
-  <button class="music-btn" id="playBtn" title="Play/Pause" aria-label="Toggle music">
-    <span class="eq-bars">
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-      <span class="eq-bar" style="height:4px"></span>
-    </span>
-    Music
-  </button>
-</div>
-<!-- Real-time clock — right of the music/ambient buttons -->
 <div id="clock"></div>
 </div><!-- /#hud -->
 
@@ -481,8 +466,11 @@
   window._seamlessTransition = true;
   // Import the game entry — shares the state.js singleton (scene/renderer/camera),
   // so the world is already there; main.js just takes over the render loop.
-  import('./src/main.js').catch(function(err) {
+  import('./src/main.js').then(function() {
+    window._mainReady = true; // loading-curtain gate: game module fully initialized
+  }).catch(function(err) {
     console.error('Failed to load game:', err);
+    window._mainReady = true; // fail open — lift the curtain on whatever rendered
   });
 })();
 
@@ -606,19 +594,8 @@ function injectGameDOM() {
   // #bgMusic) so Vite rewrites their source paths to the hashed build assets.
   // Creating them here via innerHTML left 'assets/audio/...' un-rewritten → 404.
 
-  // Add ambient button to music UI
-  var musicUI = document.getElementById('musicUI');
-  if (musicUI) {
-    musicUI.style.display = 'flex';
-    musicUI.style.gap = '8px';
-    var ambBtn = document.createElement('button');
-    ambBtn.className = 'music-btn';
-    ambBtn.id = 'ambientBtn';
-    ambBtn.title = 'Ambient Sound';
-    ambBtn.setAttribute('aria-label', 'Toggle ambient audio');
-    ambBtn.innerHTML = '<span class="eq-bars"><span class="eq-bar" style="height:4px"></span><span class="eq-bar" style="height:4px"></span><span class="eq-bar" style="height:4px"></span><span class="eq-bar" style="height:4px"></span></span> Ambient';
-    musicUI.appendChild(ambBtn);
-  }
+  // Legacy Music/Ambient button cluster removed — audio is owned by the
+  // Settings menu (settings.js).
 
   // Run game page inline scripts (guest signup, wish, ambient audio, notification, etc.)
   runGameScripts();
@@ -627,74 +604,7 @@ function injectGameDOM() {
 function runGameScripts() {
   var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw97pWaHISz1VdJsQAp6zlLDM1tWnsxQkNsPblod1zah-oHk-c9yMsbsy8PwZ3ppcEITQ/exec';
 
-  // --- Ambient audio crossfade ---
-  var ambAbove = document.getElementById('ambAbove');
-  var ambBelow = document.getElementById('ambBelow');
-  var ambientBtn = document.getElementById('ambientBtn');
-  if (ambAbove) ambAbove.volume = 0;
-  if (ambBelow) ambBelow.volume = 0;
-  var ambientPlaying = false, ambientToggling = false;
-  var ambAboveVol = 0, ambBelowVol = 0, ambRafId = null;
-
-  function ambientCrossfadeLoop() {
-    if (!ambientPlaying) return;
-    var underwater = window._isPlayerUnderwater ? window._isPlayerUnderwater() : false;
-    var aboveTarget = underwater ? 0.0 : 0.35;
-    var belowTarget = underwater ? 0.35 : 0.0;
-    ambAboveVol += (aboveTarget - ambAboveVol) * 0.05;
-    ambBelowVol += (belowTarget - ambBelowVol) * 0.05;
-    if (Math.abs(ambAboveVol - aboveTarget) < 0.002) ambAboveVol = aboveTarget;
-    if (Math.abs(ambBelowVol - belowTarget) < 0.002) ambBelowVol = belowTarget;
-    ambAbove.volume = ambAboveVol;
-    ambBelow.volume = ambBelowVol;
-    ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
-  }
-
-  function toggleAmbient() {
-    if (ambientToggling) return;
-    ambientToggling = true;
-    setTimeout(function() { ambientToggling = false; }, 300);
-    if (!ambientPlaying) {
-      ambAboveVol = 0; ambBelowVol = 0;
-      ambAbove.volume = 0; ambBelow.volume = 0;
-      ambAbove.play().catch(function(){});
-      ambBelow.play().catch(function(){});
-      ambientPlaying = true;
-      ambientBtn.classList.add('playing');
-      ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
-    } else {
-      ambientPlaying = false;
-      ambientBtn.classList.remove('playing');
-      if (ambRafId) { cancelAnimationFrame(ambRafId); ambRafId = null; }
-      ambAbove.pause(); ambBelow.pause();
-      ambAboveVol = 0; ambBelowVol = 0;
-      ambAbove.volume = 0; ambBelow.volume = 0;
-    }
-  }
-
-  if (ambientBtn) {
-    ambientBtn.addEventListener('pointerdown', toggleAmbient);
-    ambientBtn.addEventListener('click', function(e) { e.preventDefault(); toggleAmbient(); });
-    ambientBtn.addEventListener('touchend', function(e) { e.preventDefault(); toggleAmbient(); });
-  }
-
-  // Auto-start ambient on first interaction (play mode)
-  function autoStartAmbient() {
-    if (!ambientPlaying && ambAbove) {
-      ambAboveVol = 0; ambBelowVol = 0;
-      ambAbove.volume = 0; ambBelow.volume = 0;
-      ambAbove.play().then(function() {
-        ambBelow.play().catch(function(){});
-        ambientPlaying = true;
-        if (ambientBtn) ambientBtn.classList.add('playing');
-        ambRafId = requestAnimationFrame(ambientCrossfadeLoop);
-      }).catch(function(){});
-    }
-    window.removeEventListener('pointerdown', autoStartAmbient);
-    window.removeEventListener('keydown', autoStartAmbient);
-    window.removeEventListener('touchstart', autoStartAmbient);
-  }
-  // Auto-start removed — ambient is OFF by default, controlled by the Settings menu (settings.js).
+  // Legacy ambient-audio controller removed — the Settings menu (settings.js) owns all audio.
 
   // --- Task notification system ---
   window._notify = function(msg) {

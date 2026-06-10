@@ -13,6 +13,9 @@ import { sunLight } from './sky-water.js';
 import {
   loadSettings, saveSettings, applyPreset, detectPreset,
 } from './settings-store.js';
+// Single source of truth for the version stamp (bottom of the panel):
+// package.json's "version" — bumped on every /ship-it (see CLAUDE.md).
+import { version as APP_VERSION } from '../package.json';
 
 const WEATHER_OPTS = [
   { v: 'auto', label: 'Auto' },
@@ -37,10 +40,6 @@ export function initSettings() {
   _builtDetail = S.gfx.waterDetail;
 
   injectStyles();
-  // Remove the legacy Music/Ambient button cluster wherever it was rendered.
-  const legacy = document.getElementById('musicUI');
-  if (legacy) legacy.remove();
-
   setupAudio();
   buildUI();
   applyGraphicsLive();        // apply persisted live settings on load
@@ -163,6 +162,12 @@ function buildUI() {
     </button>
     <div class="sip-panel" id="sipPanel" hidden>
       <div class="sip-sec">
+        <div class="sip-h">Weather</div>
+        <div class="sip-row"><span>Sky</span>
+          <select class="sip-sel" id="sipWeather">${WEATHER_OPTS.map(o => `<option value="${o.v}">${o.label}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="sip-sec">
         <div class="sip-h">Audio</div>
         <label class="sip-row"><span>Music</span><input type="checkbox" class="sip-sw" data-a="music"></label>
         <label class="sip-row"><span>Ambient</span><input type="checkbox" class="sip-sw" data-a="ambient"></label>
@@ -179,40 +184,38 @@ function buildUI() {
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
-            <option value="custom" disabled>Custom</option>
+            <option value="custom">Custom</option>
           </select>
         </div>
-        <div class="sip-gauge" id="sipGauge">
+        <div class="sip-gauge" id="sipGauge" title="Estimated share of this device's total CPU the game is using — the dial fills toward the 5% wallpaper budget.">
           <svg viewBox="0 0 120 78" width="100%" height="78">
             <path d="M10,64 A50,50 0 0 1 110,64" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="9" stroke-linecap="round"></path>
             <path id="sipArc" d="M10,64 A50,50 0 0 1 110,64" fill="none" stroke="#5fd38a" stroke-width="9" stroke-linecap="round" stroke-dasharray="157.1" stroke-dashoffset="157.1" style="transition:stroke-dashoffset .4s ease, stroke .4s ease"></path>
             <text id="sipEst" x="60" y="50" text-anchor="middle" fill="#fff" font-size="20" font-weight="700">0%</text>
-            <text id="sipFps" x="60" y="72" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">– fps</text>
+            <text x="60" y="72" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">system load</text>
           </svg>
-          <div class="sip-gcap">system load</div>
+          <div class="sip-gcap" id="sipFps">(– FPS)</div>
         </div>
-        <div class="sip-row"><span>Frame rate</span>
-          <select class="sip-sel" data-g="frameRate">
-            <option value="24">24 fps</option><option value="30">30 fps</option><option value="60">60 fps</option>
-          </select>
-        </div>
-        <div class="sip-row"><span>Resolution</span>
-          <select class="sip-sel" data-g="resolution"><option value="half">Half</option><option value="full">Full</option></select>
-        </div>
-        <label class="sip-row"><span>Shadows</span><input type="checkbox" class="sip-sw" data-g="shadows"></label>
-        <label class="sip-row"><span>Smooth water</span><input type="checkbox" class="sip-sw" data-g="waterNormals"></label>
-        <label class="sip-row"><span>Pause when hidden</span><input type="checkbox" class="sip-sw" data-g="pauseHidden"></label>
-        <label class="sip-row"><span>Antialiasing <em>reloads</em></span><input type="checkbox" class="sip-sw" data-g="antialias"></label>
-        <div class="sip-row"><span>Water detail <em>reloads</em></span>
-          <select class="sip-sel" data-g="waterDetail"><option value="low">Low</option><option value="high">High</option></select>
-        </div>
-      </div>
-      <div class="sip-sec">
-        <div class="sip-h">Weather</div>
-        <div class="sip-row"><span>Sky</span>
-          <select class="sip-sel" id="sipWeather">${WEATHER_OPTS.map(o => `<option value="${o.v}">${o.label}</option>`).join('')}</select>
+        <button class="sip-scan" id="sipScan" data-tip="Benchmarks each quality preset on this device for a few seconds and keeps the best one that stays under 5% of total CPU.">Scan this device</button>
+        <div id="sipCustomRows">
+          <div class="sip-row"><span>Frame rate</span>
+            <select class="sip-sel" data-g="frameRate">
+              <option value="24">24 fps</option><option value="30">30 fps</option><option value="60">60 fps</option>
+            </select>
+          </div>
+          <div class="sip-row"><span>Resolution</span>
+            <select class="sip-sel" data-g="resolution"><option value="half">Half</option><option value="full">Full</option></select>
+          </div>
+          <label class="sip-row"><span>Shadows</span><input type="checkbox" class="sip-sw" data-g="shadows"></label>
+          <label class="sip-row"><span>Smooth water</span><input type="checkbox" class="sip-sw" data-g="waterNormals"></label>
+          <label class="sip-row"><span>Pause when hidden</span><input type="checkbox" class="sip-sw" data-g="pauseHidden"></label>
+          <label class="sip-row"><span>Antialiasing <em>reloads</em></span><input type="checkbox" class="sip-sw" data-g="antialias"></label>
+          <div class="sip-row"><span>Water detail <em>reloads</em></span>
+            <select class="sip-sel" data-g="waterDetail"><option value="low">Low</option><option value="high">High</option></select>
+          </div>
         </div>
       </div>
+      <div class="sip-ver">v${APP_VERSION}</div>
     </div>`;
   // Insert the gear before the clock.
   hud.insertBefore(wrap, hud.firstChild);
@@ -223,7 +226,9 @@ function buildUI() {
     arc: wrap.querySelector('#sipArc'),
     est: wrap.querySelector('#sipEst'),
     fps: wrap.querySelector('#sipFps'),
+    wrap: wrap.querySelector('#sipGauge'),
   };
+  _gauge.baseTitle = _gauge.wrap.getAttribute('title') || '';
 
   // Open / close
   const gear = wrap.querySelector('#sipGear');
@@ -260,7 +265,7 @@ function buildUI() {
         v = (k === 'frameRate') ? parseInt(el.value, 10) : el.value;
       }
       S.gfx[k] = v;
-      S.gfxPreset = detectPreset();
+      S.gfxPreset = 'custom'; // granular controls live in Custom mode
       saveSettings();
       syncControls();
       updateGauge();
@@ -269,10 +274,40 @@ function buildUI() {
     });
   });
 
+  // Scan button — explicit, user-triggered graphics benchmark
+  const scanBtn = wrap.querySelector('#sipScan');
+  scanBtn.addEventListener('click', async () => {
+    if (scanBtn.disabled) return;
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'scanning…';
+    const res = await autoTune();
+    if (!res) {
+      scanBtn.textContent = 'Scan this device';
+      scanBtn.disabled = false;
+      return;
+    }
+    const label = res.preset.charAt(0).toUpperCase() + res.preset.slice(1);
+    scanBtn.textContent = label + ' · ≈' + res.sysPct.toFixed(1) + '% of total CPU';
+    // Antialias / water detail are fixed at construction — finish applying the
+    // chosen preset with a reload, same as picking it in the Quality dropdown.
+    if (needsReload()) { setTimeout(() => location.reload(), 1500); return; }
+    setTimeout(() => {
+      scanBtn.textContent = 'Scan this device';
+      scanBtn.disabled = false;
+    }, 4000);
+  });
+
   // Preset selector
   wrap.querySelector('#sipPreset').addEventListener('change', (e) => {
     const name = e.target.value;
-    if (name === 'custom') return;
+    if (name === 'custom') {
+      // Unlock the granular controls, pre-populated with the current values —
+      // nothing changes until the player tweaks a row.
+      S.gfxPreset = 'custom';
+      saveSettings();
+      syncControls();
+      return;
+    }
     applyPreset(name);
     syncControls();
     updateGauge();
@@ -320,11 +355,12 @@ function syncControls() {
   root.querySelector('[data-g="pauseHidden"]').checked = !!g.pauseHidden;
   root.querySelector('[data-g="antialias"]').checked = !!g.antialias;
   root.querySelector('[data-g="waterDetail"]').value = g.waterDetail;
-  const preset = detectPreset();
   const presetSel = root.querySelector('#sipPreset');
-  const customOpt = presetSel.querySelector('option[value="custom"]');
-  customOpt.disabled = (preset !== 'custom');
-  presetSel.value = preset;
+  const choice = (S.gfxPreset === 'custom') ? 'custom' : detectPreset();
+  presetSel.value = choice;
+  // Granular rows are Custom-only — named presets keep the panel compact.
+  const customRows = root.querySelector('#sipCustomRows');
+  if (customRows) customRows.style.display = (choice === 'custom') ? '' : 'none';
   root.querySelector('#sipWeather').value = String(S.weather);
 }
 
@@ -335,17 +371,86 @@ const ARC_LEN = 157.1; // π · r (r=50) for the semicircle path
 function updateGauge() {
   if (!_gauge) return;
   // Live, MEASURED load — window.__sipPerf is written each frame by main.js as
-  // (this machine's per-frame work time / frame budget). Reflects YOUR hardware,
-  // not an abstract estimate: a fast GPU reads low, a struggling one climbs.
+  // (this machine's per-frame work time / frame budget). Displayed as the share
+  // of TOTAL system CPU — the same unit the scan button and OS task managers
+  // report — and the dial fills toward the 5% wallpaper budget.
   const p = window.__sipPerf || { loadPct: 0, fps: 0 };
-  const load = Math.max(0, Math.min(100, p.loadPct || 0));
-  _gauge.arc.style.strokeDashoffset = String(ARC_LEN * (1 - load / 100));
-  _gauge.arc.style.stroke = load < 40 ? '#5fd38a' : load < 70 ? '#e6c14a' : '#e5705a';
-  _gauge.est.textContent = load + '%';
+  const load = Math.max(0, Math.min(100, p.loadPct || 0)); // % of one core's frame budget
+  const sys = sysPctFromLoad(load);                        // % of total system CPU
+  const budgetFrac = Math.max(0, Math.min(1, sys / TUNE_TARGET_SYS_PCT));
+  _gauge.arc.style.strokeDashoffset = String(ARC_LEN * (1 - budgetFrac));
+  _gauge.arc.style.stroke = budgetFrac < 0.4 ? '#5fd38a' : budgetFrac < 0.7 ? '#e6c14a' : '#e5705a';
+  _gauge.est.textContent = sys.toFixed(1) + '%';
   const fps = Math.round(p.fps || 0);
-  _gauge.fps.textContent = fps > 0 ? '≈ ' + fps + ' fps' : '– fps';
+  _gauge.fps.textContent = fps > 0 ? '(' + fps + ' FPS)' : '(– FPS)';
+  if (_gauge.wrap) {
+    _gauge.wrap.title = _gauge.baseTitle + ' Frame budget used: ' + load + '%.';
+  }
 }
 function pollFps() { updateGauge(); }
+
+// ============================================================
+// Graphics scan — user-triggered benchmark (Settings → Graphics → Scan)
+// ============================================================
+// Runs ONLY when the player clicks "Scan this device" — never at boot, so
+// loading stays fast (the Low default already guarantees a cheap wallpaper).
+// Benchmarks each preset's real cost on THIS machine (window.__sipPerf:
+// smoothed main-thread ms vs frame budget), converts it to a share of TOTAL
+// system CPU via navigator.hardwareConcurrency (TUNE_OVERHEAD covers the
+// browser's GPU/compositor processes, which the main-thread metric can't
+// see), and keeps the best preset under the wallpaper budget.
+const TUNE_TARGET_SYS_PCT = 5;   // hard ceiling: % of total system CPU for the wallpaper
+const TUNE_OVERHEAD = 1.25;      // browser GPU/compositor processes (unmeasurable from JS)
+const TUNE_SETTLE_MS = 800;      // let the work EMA converge after a preset switch
+const TUNE_SAMPLES = 5;          // readings averaged per measurement
+const TUNE_SAMPLE_GAP_MS = 120;
+const PRESET_LADDER = ['high', 'medium', 'low']; // best first
+
+let _scanning = false;
+const _sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// gauge loadPct (% of one core's frame budget) → % of total system capacity
+function sysPctFromLoad(loadPct) {
+  return (loadPct * TUNE_OVERHEAD) / (navigator.hardwareConcurrency || 4);
+}
+
+async function measureSysPct() {
+  await _sleep(TUNE_SETTLE_MS);
+  let sum = 0, n = 0;
+  for (let i = 0; i < TUNE_SAMPLES; i++) {
+    await _sleep(TUNE_SAMPLE_GAP_MS);
+    const p = window.__sipPerf;
+    if (p && p.loadPct) { sum += p.loadPct; n++; }
+  }
+  return n ? sysPctFromLoad(sum / n) : 0; // no frames measurable → treat as free
+}
+
+function tuneApply(name) {
+  applyPreset(name);       // snaps S.gfx to the preset + persists
+  applyGraphicsLive();     // live knobs apply now; antialias/water-detail need a reload
+  syncControls();
+  updateGauge();
+}
+
+async function autoTune() {
+  if (_scanning || document.hidden) return null; // hidden tab → rAF throttled, bad samples
+  _scanning = true;
+  try {
+    let chosen = PRESET_LADDER[0];
+    let sys = 0;
+    for (const name of PRESET_LADDER) {
+      tuneApply(name);
+      chosen = name;
+      sys = await measureSysPct();
+      if (sys < TUNE_TARGET_SYS_PCT) break; // best preset under budget — keep it
+    }
+    console.info('[stranded] scan: preset "' + chosen + '" ≈ ' + sys.toFixed(1)
+      + '% of total CPU (budget ' + TUNE_TARGET_SYS_PCT + '%)');
+    return { preset: chosen, sysPct: sys };
+  } finally {
+    _scanning = false;
+  }
+}
 
 // ============================================================
 // Styles
@@ -397,6 +502,69 @@ function injectStyles() {
   .sip-sw:checked::after { transform: translateX(16px); }
   .sip-gauge { text-align: center; margin: 4px 0 10px; }
   .sip-gcap { font-size: 10px; color: rgba(255,255,255,0.45); margin-top: -8px; }
+  .sip-scan {
+    display: block; width: 100%; margin: 4px 0 10px;
+    padding: 7px 10px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: #fff;
+    font: 600 11px/1 system-ui, sans-serif; letter-spacing: 0.03em;
+    cursor: pointer; transition: background .2s;
+    position: relative;
+  }
+  .sip-scan:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
+  .sip-scan:disabled { opacity: 0.6; cursor: default; }
+  /* Custom tooltip (styled, replaces the native title bubble) */
+  .sip-scan::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(2px);
+    width: 210px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(8, 14, 18, 0.96);
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    color: rgba(255,255,255,0.85);
+    font: 400 10.5px/1.45 system-ui, sans-serif;
+    letter-spacing: 0.01em;
+    text-align: left;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .18s ease, transform .18s ease;
+    z-index: 5;
+  }
+  .sip-scan::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 3px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(8, 14, 18, 0.96);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .18s ease;
+    z-index: 5;
+  }
+  .sip-scan:hover:not(:disabled)::after,
+  .sip-scan:hover:not(:disabled)::before {
+    opacity: 1;
+    transition-delay: .25s;
+  }
+  .sip-scan:hover:not(:disabled)::after { transform: translateX(-50%) translateY(0); }
+  /* Version stamp at the bottom of the panel */
+  .sip-ver {
+    text-align: center;
+    font: 400 10px/1 system-ui, sans-serif;
+    color: rgba(255,255,255,0.28);
+    letter-spacing: 0.06em;
+    margin: 10px 0 2px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
   .sip-set.sip-hide-gear .sip-gear { opacity: 0; transition: opacity .25s ease; }
   .sip-set.sip-hide-gear:hover .sip-gear,
   .sip-set.sip-hide-gear.sip-panel-open .sip-gear { opacity: 1; }

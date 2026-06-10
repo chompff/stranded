@@ -310,6 +310,7 @@ export function placeFlora(specId, gx, gz) {
   const flora = {
     group: model, specId, gx, gz,
     targetScale: s,
+    stretchY: randRange(0.85, 1.15), // independent height variety (palms only)
     surfaceY: actualY,
     spawnTime: clock.getElapsedTime(),
     grown: false,
@@ -402,16 +403,157 @@ export function removeFlora(gx, gz) {
     group: flora.group,
     startTime: clock.getElapsedTime(),
     startScale: flora.group.scale.x,
+    startScaleY: flora.group.scale.y, // keep height aspect through the death animation
     startY: flora.group.position.y,
   });
 }
 
-// ── (Coconut system removed — clean gameplay) ──
+// ============================================================
+// COCONUTS — shaken loose by hovering a palm
+// ============================================================
+// One shared geometry + material for the whole pool (GPU batching, zero
+// per-frame allocations). A disturbed palm sometimes drops a coconut from
+// its canopy: gravity fall, a couple of bounces on the sand, a short rest,
+// then a shrink-out back into the pool (shared material — we fade by scale,
+// not opacity, so no per-instance material clones).
+const COCONUT_POOL_SIZE = 8;
+const COCONUT_DROP_CHANCE = 0.03;  // per shake of a grown palm
+const COCONUT_TREE_COOLDOWN = 5;   // seconds before the same palm can drop again
+const COCONUT_GRAVITY = 14;        // a touch heavier than 9.8 — reads better at island scale
+const COCONUT_BOUNCE = 0.35;       // vertical energy kept per bounce
+const COCONUT_FRICTION = 0.55;     // horizontal energy kept per bounce
+const COCONUT_REST_S = 2.2;        // pause on the sand before shrinking away
+const COCONUT_SHRINK_S = 0.6;
+const COCONUT_R = 0.16;
+
+const _coconutGeo = new THREE.SphereGeometry(COCONUT_R, 10, 8);
+_coconutGeo.scale(1, 1.18, 1); // slightly oval, like the real thing
+const _coconutMat = new THREE.MeshLambertMaterial({ color: 0x5b4226 });
+const _coconuts = []; // pool: { mesh, active, vx, vy, vz, restY, state, stateT, spinX, spinZ }
+
+function _spawnCoconut(group, canopyY, t) {
+  let c = _coconuts.find(k => !k.active);
+  if (!c && _coconuts.length < COCONUT_POOL_SIZE) {
+    const mesh = new THREE.Mesh(_coconutGeo, _coconutMat);
+    mesh.castShadow = true;
+    mesh.visible = false;
+    scene.add(mesh);
+    c = { mesh, active: false, vx: 0, vy: 0, vz: 0, restY: 0, state: 'fall', stateT: 0, spinX: 0, spinZ: 0 };
+    _coconuts.push(c);
+  }
+  if (!c) return; // pool exhausted — skip this drop
+  const s = group.scale.x || 1;
+  c.active = true;
+  c.state = 'fall';
+  c.stateT = t;
+  c.mesh.visible = true;
+  c.mesh.scale.setScalar(1);
+  c.mesh.position.set(
+    group.position.x + (Math.random() - 0.5) * 0.7 * s,
+    canopyY,
+    group.position.z + (Math.random() - 0.5) * 0.7 * s
+  );
+  c.mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+  c.vx = (Math.random() - 0.5) * 0.6;
+  c.vz = (Math.random() - 0.5) * 0.6;
+  c.vy = 0;
+  c.restY = group.position.y + COCONUT_R * 1.18;
+  c.spinX = (Math.random() - 0.5) * 8;
+  c.spinZ = (Math.random() - 0.5) * 8;
+}
+
+// Canopy height — measured once per palm via Box3 (a traverse, but only on
+// the first drop of that palm; cached on the record afterwards).
+const _canopyBox = new THREE.Box3();
+function _canopyYFor(rec) {
+  if (rec._canopyY === undefined) {
+    _canopyBox.setFromObject(rec.group);
+    // Drop from inside the crown, not the very tip
+    rec._canopyY = rec.group.position.y + (_canopyBox.max.y - rec.group.position.y) * 0.82;
+  }
+  return rec._canopyY;
+}
+
+function _maybeDropCoconut(rec, t) {
+  if (t - (rec._lastCoconut || -Infinity) < COCONUT_TREE_COOLDOWN) return;
+  if (Math.random() > COCONUT_DROP_CHANCE) return;
+  rec._lastCoconut = t;
+  _spawnCoconut(rec.group, _canopyYFor(rec), t);
+}
+
+function _updateCoconuts(t, dt) {
+  const cdt = Math.min(dt, 0.1); // clamp: stable physics after tab-refocus dt spikes
+  for (let i = 0; i < _coconuts.length; i++) {
+    const c = _coconuts[i];
+    if (!c.active) continue;
+    if (c.state === 'fall') {
+      c.vy -= COCONUT_GRAVITY * cdt;
+      c.mesh.position.x += c.vx * cdt;
+      c.mesh.position.y += c.vy * cdt;
+      c.mesh.position.z += c.vz * cdt;
+      c.mesh.rotation.x += c.spinX * cdt;
+      c.mesh.rotation.z += c.spinZ * cdt;
+      if (c.mesh.position.y <= c.restY) {
+        c.mesh.position.y = c.restY;
+        if (Math.abs(c.vy) > 1.2) {
+          c.vy = -c.vy * COCONUT_BOUNCE;   // thump — bounce
+          c.vx *= COCONUT_FRICTION;
+          c.vz *= COCONUT_FRICTION;
+          c.spinX *= COCONUT_FRICTION;
+          c.spinZ *= COCONUT_FRICTION;
+        } else {
+          c.state = 'rest';                // settled in the sand
+          c.stateT = t;
+        }
+      }
+    } else if (c.state === 'rest') {
+      if (t - c.stateT >= COCONUT_REST_S) { c.state = 'shrink'; c.stateT = t; }
+    } else { // shrink
+      const k = 1 - Math.min(1, (t - c.stateT) / COCONUT_SHRINK_S);
+      c.mesh.scale.setScalar(Math.max(0.001, k));
+      if (k <= 0) { c.active = false; c.mesh.visible = false; }
+    }
+  }
+}
 
 function disturbTree(flora, t) {
   if (flora.disturbed) return;
   if (!flora.grown) return;
   flora.disturbed = t;
+  _maybeDropCoconut(flora, t);
+}
+
+// ── Wild palms (the wallpaper's landing-page palms) ─────────
+// At root the visible palms are plain scene children created by landing.js,
+// not ecosystem flora — so they get their own lightweight records here.
+// Hover detection uses a cheap ray–sphere test per palm: ~70 GLB clones
+// through a geometry raycast would mean thousands of triangle tests per
+// pointermove. Records sync lazily because the landing GLB loads async.
+const _wildPalms = [];   // { group, baseRotX, baseRotZ, disturbed, sphereC, sphereR, _canopyY, _lastCoconut }
+let _wildSrc = null;     // live array from landing.js (fills as the GLB loads)
+const _wildVec = new THREE.Vector3();
+
+export function adoptWildPalms(groups) {
+  _wildSrc = groups || null;
+}
+
+function _syncWildPalms() {
+  if (!_wildSrc || _wildSrc.length === _wildPalms.length) return;
+  for (let i = _wildPalms.length; i < _wildSrc.length; i++) {
+    const g = _wildSrc[i];
+    _canopyBox.setFromObject(g);
+    const topY = _canopyBox.max.y;
+    const h = Math.max(0.5, topY - g.position.y);
+    _wildPalms.push({
+      group: g,
+      baseRotX: g.rotation.x,
+      baseRotZ: g.rotation.z,
+      disturbed: null,
+      sphereC: new THREE.Vector3(g.position.x, (g.position.y + topY) * 0.5, g.position.z),
+      sphereR: Math.max(1.0, h * 0.4),
+      _canopyY: g.position.y + h * 0.82,
+    });
+  }
 }
 
 // ── Flora hover detection (outside build mode) ──
@@ -440,7 +582,35 @@ window.addEventListener('pointermove', (e) => {
       }
     });
   } else {
-    _lastDisturbedKey = null;
+    // Wild palms (wallpaper) — cheap ray–sphere tests, nearest hit wins
+    _syncWildPalms();
+    let best = null, bestIdx = -1, bestT = Infinity;
+    const ro = _floraHoverRay.ray.origin, rd = _floraHoverRay.ray.direction;
+    for (let i = 0; i < _wildPalms.length; i++) {
+      const w = _wildPalms[i];
+      _wildVec.subVectors(w.sphereC, ro);
+      const tca = _wildVec.dot(rd);
+      if (tca < 0) continue;
+      const d2 = _wildVec.lengthSq() - tca * tca;
+      if (d2 <= w.sphereR * w.sphereR && tca < bestT) { bestT = tca; best = w; bestIdx = i; }
+    }
+    if (best) {
+      const key = 'wild:' + bestIdx;
+      if (key !== _lastDisturbedKey) {
+        _lastDisturbedKey = key;
+        if (!best.disturbed) {
+          const t = clock.getElapsedTime();
+          // Capture the pose at disturb time — wild palms are not re-posed
+          // by sway each frame, so the shake must return them exactly here.
+          best.baseRotX = best.group.rotation.x;
+          best.baseRotZ = best.group.rotation.z;
+          best.disturbed = t;
+          _maybeDropCoconut(best, t);
+        }
+      }
+    } else {
+      _lastDisturbedKey = null;
+    }
   }
 }, { passive: true });
 
@@ -466,14 +636,15 @@ export function ecosystemTick(t, dt) {
         const bloomElapsed = elapsed - particlePhase;
         const progress = Math.min(1, bloomElapsed / growDuration);
         const ease = 1 - Math.pow(1 - progress, 4);
+        const sy = flora.stretchY || 1; // corals carry no stretch
         const xz = s * (0.1 + 0.9 * ease);
-        const y  = s * (0.6 + 0.4 * ease);
+        const y  = s * sy * (0.6 + 0.4 * ease);
         g.scale.set(xz, y, xz);
         g.position.y = flora.surfaceY;
         g.rotation.y += dt * 6 * (1 - ease);
         if (progress >= 1) {
           flora.grown = true;
-          g.scale.set(s, s, s);
+          g.scale.set(s, s * sy, s);
         }
       }
     }
@@ -538,6 +709,29 @@ export function ecosystemTick(t, dt) {
     }
   });
 
+  // ── Wild palms (wallpaper): hover shake + return to frozen pose ──
+  _syncWildPalms();
+  for (let i = 0; i < _wildPalms.length; i++) {
+    const w = _wildPalms[i];
+    if (!w.disturbed) continue;
+    const since = t - w.disturbed;
+    const shakeDuration = 1.2;
+    if (since < shakeDuration) {
+      const decay = 1 - since / shakeDuration;
+      const shakeAmp = decay * 0.06;
+      const shakeFreq = 14;
+      w.group.rotation.x = w.baseRotX + Math.sin(t * shakeFreq) * shakeAmp;
+      w.group.rotation.z = w.baseRotZ + Math.cos(t * shakeFreq * 1.3) * shakeAmp * 0.8;
+    } else {
+      w.group.rotation.x = w.baseRotX;
+      w.group.rotation.z = w.baseRotZ;
+      w.disturbed = null;
+    }
+  }
+
+  // ── Coconuts: fall, bounce, rest, shrink away ──
+  _updateCoconuts(t, dt);
+
   // ── Dying flora: shrink + spin out ──
   for (let i = dyingFlora.length - 1; i >= 0; i--) {
     const d = dyingFlora[i];
@@ -547,7 +741,8 @@ export function ecosystemTick(t, dt) {
     // Ease-in quad — starts slow, accelerates into ground
     const ease = progress * progress;
     const s = d.startScale * (1 - ease);
-    d.group.scale.set(s * 0.6, s, s * 0.6); // squish X/Z first — tree narrows then vanishes
+    const sy = (d.startScaleY || d.startScale) * (1 - ease);
+    d.group.scale.set(s * 0.6, sy, s * 0.6); // squish X/Z first — tree narrows then vanishes
     d.group.position.y = d.startY - ease * 0.5; // sink slightly into ground
     d.group.rotation.y += dt * 6 * progress; // gentle spin accelerates
     if (progress >= 1) {

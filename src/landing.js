@@ -65,6 +65,9 @@ setupCamera();
 // Palm trees — load FL-001.glb, place ~5 on the island
 // ============================================================
 const palmInstances = [];
+// Exposed for the game: at root, main.js adopts these as the island's palms
+// (hover shake + coconut drops via ecosystem.js adoptWildPalms).
+window._landingPalms = palmInstances;
 const gltfLoader = new GLTFLoader();
 
 gltfLoader.load('assets/models/FL-001.glb', (gltf) => {
@@ -161,7 +164,11 @@ gltfLoader.load('assets/models/FL-001.glb', (gltf) => {
 
   placements.forEach((p, i) => {
     const palm = template.clone();
-    palm.scale.setScalar(p.scale);
+    // Per-palm variety: ±10% overall size + independent height stretch,
+    // layered on the hand-tuned base scale of each placement.
+    const size = p.scale * (0.9 + Math.random() * 0.2);
+    const stretch = 0.85 + Math.random() * 0.3;
+    palm.scale.set(size, size * stretch, size);
     palm.position.set(p.x, 1, p.z); // Y=1 is approximate plateau surface
     palm.rotation.y = p.rotY;
     // Slight organic tilt
@@ -298,26 +305,89 @@ function updateWaterline(t) {
 }
 
 // ============================================================
+// Loading curtain — hold the white cover until the game module
+// (main.js) has fully initialized AND every asset tracked by
+// THREE.DefaultLoadingManager (GLB models, textures) has finished
+// loading, then fade it out. All loads at root start during module
+// evaluation (landing palms here; rocks/slabs/birds/fish in main.js),
+// so the module-ready + loader-idle gate covers everything. A safety
+// cap guarantees the curtain always lifts even if an asset stalls.
+// The graphics scan is NOT in this path — it runs only on request via
+// Settings → Graphics → "Scan this device", so boot stays fast.
+// Progress bar weighting: assets 85% + game module 15%.
+// ============================================================
+const CURTAIN_IDLE_GRACE_MS = 400;  // loader must stay idle this long (bridges back-to-back loads)
+const CURTAIN_MAX_WAIT_MS = 15000;  // absolute cap — never strand the user on white
+const _curtainT0 = performance.now();
+let _loaderBusy = false;
+let _loaderIdleSince = performance.now();
+let _assetRatio = 0;                // monotonic: itemsTotal grows as loads queue
+THREE.DefaultLoadingManager.onStart = () => { _loaderBusy = true; };
+THREE.DefaultLoadingManager.onProgress = (url, loaded, total) => {
+  if (total > 0) _assetRatio = Math.max(_assetRatio, loaded / total);
+};
+THREE.DefaultLoadingManager.onLoad = () => {
+  _loaderBusy = false;
+  _loaderIdleSince = performance.now();
+  _assetRatio = 1;
+};
+
+function liftCurtain() {
+  const curtain = document.getElementById('sceneCurtain');
+  if (curtain) curtain.classList.add('lifted');
+  // Remove from DOM after the fade completes
+  setTimeout(() => { if (curtain) curtain.remove(); }, 2000);
+}
+
+const _curtainBarEl = document.getElementById('curtainBarFill');
+const _curtainStatusEl = document.getElementById('curtainStatus');
+
+// Castaway chores — rotating status lines under the bar. The HTML ships
+// "loading paradise…" as line zero; these take over after the first beat.
+const CURTAIN_LINES = [
+  'hanging coconuts…',
+  'combing the beach…',
+  'convincing palms to sway…',
+  'teaching crabs to sidestep…',
+  'stirring the lagoon…',
+  'herding reef fish…',
+  'bribing the seagulls…',
+  'warming the sand…',
+  'polishing seashells…',
+  'untangling the seaweed…',
+  'raking yesterday’s footprints…',
+  'bottling messages…',
+];
+const CURTAIN_LINE_MS = 1400;       // one chore at a time, unhurried
+let _lineIdx = Math.floor(Math.random() * CURTAIN_LINES.length);
+let _lineSwapT = _curtainT0;
+
+const _curtainPoll = setInterval(() => {
+  const now = performance.now();
+  const assetsIdle = !_loaderBusy && (now - _loaderIdleSince >= CURTAIN_IDLE_GRACE_MS);
+  const progress = _assetRatio * 0.85 + (window._mainReady ? 0.15 : 0);
+  if (_curtainBarEl) _curtainBarEl.style.width = Math.round(progress * 100) + '%';
+  if (_curtainStatusEl && now - _lineSwapT >= CURTAIN_LINE_MS) {
+    _lineSwapT = now;
+    _curtainStatusEl.textContent = CURTAIN_LINES[_lineIdx % CURTAIN_LINES.length];
+    _lineIdx++;
+  }
+  if ((window._mainReady && assetsIdle) || (now - _curtainT0 >= CURTAIN_MAX_WAIT_MS)) {
+    clearInterval(_curtainPoll);
+    if (_curtainBarEl) _curtainBarEl.style.width = '100%';
+    liftCurtain();
+  }
+}, 100);
+
+// ============================================================
 // Animation loop — simplified from main.js (stoppable)
 // ============================================================
-let curtainLifted = false;
 let landingRunning = true;
 
 function animate() {
   if (!landingRunning) return;
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
-
-  // Lift the black curtain after the first frame renders
-  if (!curtainLifted) {
-    curtainLifted = true;
-    requestAnimationFrame(() => {
-      const curtain = document.getElementById('sceneCurtain');
-      if (curtain) curtain.classList.add('lifted');
-      // Remove from DOM after transition completes
-      setTimeout(() => { if (curtain) curtain.remove(); }, 2000);
-    });
-  }
 
   // Day/night cycle
   dnc_update(t);

@@ -34,7 +34,7 @@ import {
 } from './terrain.js';
 
 import {
-  ecosystemTick, placeFlora, removeFlora, preloadModels
+  ecosystemTick, placeFlora, removeFlora, preloadModels, adoptWildPalms
 } from './ecosystem.js';
 
 import { updateRockLOD, initRocks } from './rocks.js'; // Procedural rock system (Layer 2)
@@ -1039,9 +1039,12 @@ function animate() {
     renderer.render(scene, camera);
   }
 
-  // Live, hardware-relative load: this frame's actual work time vs the frame budget.
-  // A fast GPU/CPU reads low; a struggling one climbs toward 100%. Published on a
-  // window global so the Settings gauge reads it without any module-sharing surprises.
+  // Live, hardware-relative GAME load: this frame's main-thread work time vs the
+  // frame budget (1/target-fps) — i.e. "share of the frame budget", NOT system-wide
+  // CPU% (a task manager divides by ALL cores, so it reads ~N× lower on an N-core
+  // machine). A fast machine reads low; a struggling one climbs toward 100%, which
+  // means frame drops are imminent. Published on a window global so the Settings
+  // gauge reads it without any module-sharing surprises.
   const _work = performance.now() - _frameT0;
   _frameWorkMs = _frameWorkMs ? _frameWorkMs * 0.85 + _work * 0.15 : _work;
   const _targetFps = gfxRuntime.frameInterval > 0 ? (1 / gfxRuntime.frameInterval) : 60;
@@ -1532,6 +1535,10 @@ window._camDbg = {
 if (_fromLanding && window._landingCleanup) {
   window._landingCleanup();
 }
+
+// At root the landing palms ARE the game's palms — register them for
+// hover shake + coconut drops (wild-palm records in ecosystem.js).
+if (_fromLanding) adoptWildPalms(window._landingPalms || []);
 
 // Init player character (independent of GLB preload — uses capsule placeholder)
 initPlayer();

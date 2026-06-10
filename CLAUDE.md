@@ -66,6 +66,7 @@ This is the shortcut to get straight into the dev build with full tools.
 The game is hosted on **Vercel** and live at **https://stranded.live**.
 
 - The project is already linked (`.vercel/project.json` exists).
+- **Version bump on every ship:** as part of `/ship-it`, bump the patch version in `package.json` (`npm version patch --no-git-tag-version`) before committing. The in-game Settings menu displays this version at the bottom of the panel (`APP_VERSION` in `src/settings.js`) — it must always reflect what is live.
 - To deploy to production: `npx vercel --prod` from the Game folder.
 - Node.js lives at `/c/Program Files/nodejs` — add it to `PATH` if needed: `export PATH="/c/Program Files/nodejs:$PATH"`
 - Vercel builds via `vite build` and serves from `dist/`.

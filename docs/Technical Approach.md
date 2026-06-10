@@ -67,7 +67,7 @@ function detectDeviceClass() {
 // Low-end detection for quality presets
 const isLowEnd = isMobile && (navigator.hardwareConcurrency || 4) <= 4;
 ```
-Quality presets (`high`, `medium`, `low`) applied at startup. Player can override in settings.
+Default preset is `low`, so the wallpaper is guaranteed cheap out of the box and **boot never benchmarks** (loading stays fast). A **measured scan** lives in Settings → Graphics → *Scan this device* (`settings.js`): on request it benchmarks each preset's real main-thread frame cost (~1.5s per step, best preset first), converts it to a share of total system CPU (`loadPct × 1.25 overhead ÷ hardwareConcurrency`), and keeps the best preset that stays under the **5% wallpaper budget**. Players can also just pick a preset directly in the same menu.
 
 ### Orientation Lock
 Mobile devices are locked to **portrait** orientation via `screen.orientation.lock('portrait')`. The diorama composition, sun arc, and UI are designed for portrait framing on mobile. Tablets and desktops use landscape. This is enforced at startup in `main.js`.
@@ -376,7 +376,7 @@ Our minimum target is the iPhone 12 (2020, A14). Anything older is a bonus. The 
 
 **Mobile-Specific Optimizations:**
 - Device detection at startup: `navigator.maxTouchPoints > 0` for mobile, `navigator.hardwareConcurrency` for CPU cores
-- Quality presets applied automatically: `high` (desktop), `medium` (modern mobile), `low` (older mobile)
+- Quality presets: `low` by default; the user-triggered scan (Settings → Graphics → *Scan this device*) picks the best preset *measured* to stay under 5% of total system CPU
 - Disable shooting stars and bubbles on low-end devices
 - Throttle ecosystem animation tick to every 2nd frame on low-end
 - Reduce water plane vertex count on mobile (fewer CPU wave calculations)

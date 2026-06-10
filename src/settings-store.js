@@ -21,12 +21,13 @@ export const GFX_PRESETS = {
 export const GFX_KEYS = ['frameRate', 'resolution', 'shadows', 'pauseHidden', 'waterNormals', 'antialias', 'waterDetail'];
 
 function defaults() {
-  const preset = 'low'; // persistent wallpaper — light by default; raise quality via the gear
+  const preset = 'high'; // full quality by default; the scan or the gear can step it down
   return {
     music: false,        // OFF by default
     ambient: false,      // OFF by default
     showTime: true,      // top-right clock visible by default
     hideGear: false,     // settings wheel visible by default (hover-reveal when hidden)
+    showPlayer: true,    // player character visible (Interface → Show character)
     weather: 'auto',     // 'auto' | 0..3
     gfxPreset: preset,
     gfx: { ...GFX_PRESETS[preset] },

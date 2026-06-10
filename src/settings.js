@@ -41,7 +41,22 @@ export function initSettings() {
   // The gear still works for the session — but a desktop wallpaper can
   // never wake up with sound (e.g. after stray forwarded clicks toggled
   // audio in a previous run).
-  if (window._isWallpaper || WALLPAPER) { S.music = false; S.ambient = false; }
+  if (window._isWallpaper || WALLPAPER) {
+    S.music = false;
+    S.ambient = false;
+    // Wallpaper hosts (Lively) suspend/resume the page WITHOUT reloading it,
+    // so boot-time silence alone is not enough: whenever the wallpaper is
+    // hidden or comes back into view, audio is forced off again. On the
+    // wallpaper, sound can NEVER auto-resume — it only plays after a fresh,
+    // explicit toggle in the gear during the current stretch of visibility.
+    document.addEventListener('visibilitychange', () => {
+      S.music = false;
+      S.ambient = false;
+      saveSettings();
+      applyAudioState();
+      if (_panel) syncControls();
+    });
+  }
   _builtAA = !!S.gfx.antialias;
   _builtDetail = S.gfx.waterDetail;
 
@@ -148,6 +163,8 @@ function applyInterface() {
   const clock = document.getElementById('clock');
   if (clock) clock.style.display = (S.showTime !== false) ? '' : 'none';
   if (_wrap) _wrap.classList.toggle('sip-hide-gear', !!S.hideGear);
+  // Player character on/off (hides the avatar; tap-to-walk is gated on it too)
+  if (window._setPlayerVisible) window._setPlayerVisible(S.showPlayer !== false);
 }
 
 // ============================================================
@@ -182,6 +199,7 @@ function buildUI() {
         <div class="sip-h">Interface</div>
         <label class="sip-row"><span>Show time</span><input type="checkbox" class="sip-sw" data-u="showTime"></label>
         <label class="sip-row"><span>Hide settings wheel</span><input type="checkbox" class="sip-sw" data-u="hideGear"></label>
+        <label class="sip-row"><span>Show character</span><input type="checkbox" class="sip-sw" data-u="showPlayer"></label>
       </div>
       <div class="sip-sec">
         <div class="sip-h">Graphics</div>
@@ -372,6 +390,7 @@ function syncControls() {
   root.querySelector('[data-a="ambient"]').checked = !!S.ambient;
   root.querySelector('[data-u="showTime"]').checked = S.showTime !== false;
   root.querySelector('[data-u="hideGear"]').checked = !!S.hideGear;
+  root.querySelector('[data-u="showPlayer"]').checked = S.showPlayer !== false;
   const g = S.gfx;
   root.querySelector('[data-g="frameRate"]').textContent = g.frameRate + ' fps';
   root.querySelector('[data-g="resolution"]').textContent = g.resolution === 'half' ? 'Half' : 'Full';
@@ -406,7 +425,7 @@ function updateGauge() {
   const sys = sysPctFromLoad(load);                        // % of total system CPU
   const budgetFrac = Math.max(0, Math.min(1, sys / TUNE_TARGET_SYS_PCT));
   _gauge.arc.style.strokeDashoffset = String(ARC_LEN * (1 - budgetFrac));
-  _gauge.arc.style.stroke = budgetFrac < 0.4 ? '#5fd38a' : budgetFrac < 0.7 ? '#e6c14a' : '#e5705a';
+  _gauge.arc.style.stroke = budgetFrac < 0.6 ? '#5fd38a' : budgetFrac < 0.9 ? '#e6c14a' : '#e5705a';
   _gauge.est.textContent = sys.toFixed(1) + '%';
   const fps = Math.round(p.fps || 0);
   _gauge.fps.textContent = fps > 0 ? '(' + fps + ' FPS)' : '(– FPS)';

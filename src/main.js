@@ -48,11 +48,13 @@ import { initSettings } from './settings.js';
 
 import { buildBuildMenu, toggleBuildMode, updateBuildCameraPosition } from './ui.js';
 import { isDev } from './mode.js';
-import { initPlayer, updatePlayer, getPlayerWorldPosition, setPlayerVisible, isPlayerUnderwater } from './player.js';
+import { initPlayer, updatePlayer, getPlayerWorldPosition, setPlayerVisible, isPlayerUnderwater, isPlayerActive } from './player.js';
+import { getSettings } from './settings-store.js';
 
 // Expose player visibility toggle for dev UI in game.html
 window._setPlayerVisible = setPlayerVisible;
 window._isPlayerUnderwater = isPlayerUnderwater;
+window._isPlayerActive = isPlayerActive;
 import {
   weatherInit, weatherUpdate, weatherState, weatherSetCallbacks,
   weatherForceState, WEATHER_NAMES
@@ -1544,6 +1546,9 @@ if (_fromLanding) adoptWildPalms(window._landingPalms || []);
 
 // Init player character (independent of GLB preload — uses capsule placeholder)
 initPlayer();
+// Apply the saved "Show character" setting — initSettings ran before the
+// player existed, so its visibility call was a no-op at boot.
+setPlayerVisible(getSettings().showPlayer !== false);
 
 // Init procedural rocks (must run after all modules so terrainRefs.seabedMesh exists)
 initRocks();

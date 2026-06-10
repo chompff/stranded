@@ -238,6 +238,9 @@ function onPointerDown(e) {
     // Ignore taps on UI elements
     if (e.target && e.target.closest && (e.target.closest('#modeToggle') || e.target.closest('#musicBtn') || e.target.closest('#ambientBtn') || e.target.closest('#playerToggle'))) return;
 
+    // Character deactivated in Settings → no tap-to-walk, no camera recenter.
+    if (window._isPlayerActive && !window._isPlayerActive()) return;
+
     // Raycast: try terrain first, fall back to water plane
     mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;

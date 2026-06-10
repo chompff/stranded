@@ -147,14 +147,14 @@ function fleeFrom(px, py, pz, pos, radius, weight) {
 // SEA TURTLES
 // ============================================================
 const TURTLE_COUNT = 1;
-const TURTLE_HOME = { cx: 32, cz: -150, rx: 13, rz: 10 };  // mid-lagoon ellipse
-const TURTLE_DEPTH_MIN = -2.6, TURTLE_DEPTH_MAX = -1.3;     // cruise band
+const TURTLE_HOME = { cx: 38, cz: -150, rx: 9, rz: 10 };   // mid-lagoon ellipse — kept clear of the shoreline
+const TURTLE_DEPTH_MIN = -2.0, TURTLE_DEPTH_MAX = -0.9;     // cruise band — rides high, reads from the surface
 const TURTLE_SPEED = 0.85;
 const TURTLE_TURN = 1.4;
 const TURTLE_BREATH_GAP = [55, 115];   // s between breaths
 const TURTLE_BREATH_HOLD = [2.6, 4.0]; // s at the surface
 const TURTLE_PASS_GAP = [200, 420];    // s between foreground close passes
-const TURTLE_PASS_X = 14;              // the shallows lane the pass swims along
+const TURTLE_PASS_X = 20;              // the shallows lane the pass swims along (clear of the waterline strip)
 const TURTLE_SURFACE_Y = -0.12;        // shell crests the waterline here
 
 const turtles = [];
@@ -311,7 +311,7 @@ function updateTurtles(t, dt, playerActive) {
       else if (t >= tu.passAt) {
         tu.mode = 'pass';
         tu.passDir = Math.random() < 0.5 ? 1 : -1;
-        tu.wp.set(TURTLE_PASS_X, -1.0, TURTLE_HOME.cz - 14 * tu.passDir);
+        tu.wp.set(TURTLE_PASS_X, -0.8, TURTLE_HOME.cz - 14 * tu.passDir);
         tu.wpSet = true;
       } else if (!tu.wpSet || _v1.subVectors(tu.wp, tu.pos).length() < 1.6) {
         pickTurtleWaypoint(tu);
@@ -336,7 +336,7 @@ function updateTurtles(t, dt, playerActive) {
       // Swim the shallows lane parallel to the beach, then head home.
       if (_v1.subVectors(tu.wp, tu.pos).length() < 1.8) {
         if (Math.abs(tu.wp.z - (TURTLE_HOME.cz - 14 * tu.passDir)) < 2) {
-          tu.wp.set(TURTLE_PASS_X, -1.0, TURTLE_HOME.cz + 14 * tu.passDir); // traverse the lane
+          tu.wp.set(TURTLE_PASS_X, -0.8, TURTLE_HOME.cz + 14 * tu.passDir); // traverse the lane
         } else {
           tu.mode = 'cruise';
           tu.passAt = t + rand(TURTLE_PASS_GAP[0], TURTLE_PASS_GAP[1]);

@@ -25,9 +25,9 @@ function defaults() {
   return {
     music: false,        // OFF by default
     ambient: false,      // OFF by default
-    showTime: true,      // top-right clock visible by default
+    showTime: false,     // clock hidden by default (Interface → Show time)
     hideGear: false,     // settings wheel visible by default (hover-reveal when hidden)
-    showPlayer: true,    // player character visible (Interface → Show character)
+    showPlayer: false,   // character hidden by default (Interface → Show character)
     weather: 'auto',     // 'auto' | 0..3
     gfxPreset: preset,
     gfx: { ...GFX_PRESETS[preset] },

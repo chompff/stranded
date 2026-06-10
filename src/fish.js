@@ -26,13 +26,13 @@ const NUM_FISH       = 45;
 // ~Z -150). Easy to reposition by eye: nudge REEF_CX / REEF_CZ.
 const REEF_CX        = 54;            // anchor centre X (over the reef ridge)
 const REEF_CZ        = -150;          // anchor centre Z (in front of home beach)
-const REEF_CLEARANCE = 3.8;           // anchor band height above the reef floor (rides high in the water column)
+const REEF_CLEARANCE = 4.6;           // anchor band height above the reef floor (rides high in the water column)
 const ANCHOR_RADIUS  = 8.5;           // horizontal radius of the shoaling volume
-const ANCHOR_BAND    = 2.4;           // vertical half-extent of the shoaling band
+const ANCHOR_BAND    = 1.8;           // vertical half-extent of the shoaling band (tight — stays up in view)
 
 const FISH_SCALE     = 0.40;          // overall size multiplier (~0.24m long — a fraction of a gull)
 const SURFACE_Y      = -0.5;          // never rise above this (stay under the surface)
-const FLOOR_CLEAR    = 1.3;           // soft floor avoidance kicks in below floor+this
+const FLOOR_CLEAR    = 2.0;           // soft floor avoidance kicks in below floor+this
 const FLOOR_MIN      = 0.7;           // hard clamp — never sink below floor+this
 
 // Boid weights / limits (gentle, organic — keep speeds & turn-rates low)

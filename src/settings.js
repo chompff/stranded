@@ -18,11 +18,11 @@ import {
 import { version as APP_VERSION } from '../package.json';
 
 const WEATHER_OPTS = [
-  { v: 'auto', label: 'Auto' },
-  { v: '0', label: 'Clear' },
-  { v: '1', label: 'Cloudy' },
-  { v: '2', label: 'Mist' },
-  { v: '3', label: 'Rain' },
+  { v: 'auto', label: 'Auto', icon: 'Auto' },
+  { v: '0', label: 'Clear', icon: '☀️' },
+  { v: '1', label: 'Cloudy', icon: '☁️' },
+  { v: '2', label: 'Mist', icon: '🌫️' },
+  { v: '3', label: 'Rain', icon: '🌧️' },
 ];
 
 let S = null;                 // the settings object (shared with the store)
@@ -206,8 +206,9 @@ function buildUI() {
     <div class="sip-panel" id="sipPanel" hidden>
       <div class="sip-sec">
         <div class="sip-h">Weather</div>
-        <div class="sip-row"><span>Sky</span>
-          <button type="button" class="sip-cyc" id="sipWeather"></button>
+        <div class="sip-row"><span>Sky</span></div>
+        <div class="sip-seg" id="sipWeather">
+          ${WEATHER_OPTS.map(o => `<button type="button" data-w="${o.v}" title="${o.label}">${o.icon}</button>`).join('')}
         </div>
       </div>
       <div class="sip-sec">
@@ -375,14 +376,15 @@ function buildUI() {
     });
   });
 
-  // Weather cycle button: Auto → Clear → Cloudy → Mist → Rain → Auto …
-  wrap.querySelector('#sipWeather').addEventListener('click', () => {
-    const idx = WEATHER_OPTS.findIndex(o => String(o.v) === String(S.weather));
-    const next = WEATHER_OPTS[(idx + 1) % WEATHER_OPTS.length];
-    S.weather = next.v === 'auto' ? 'auto' : parseInt(next.v, 10);
-    saveSettings();
-    applyWeather();
-    syncControls();
+  // Sky — radio segments with icons (Auto · ☀️ · ☁️ · 🌫️ · 🌧️)
+  wrap.querySelectorAll('#sipWeather [data-w]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.w;
+      S.weather = v === 'auto' ? 'auto' : parseInt(v, 10);
+      saveSettings();
+      applyWeather();
+      syncControls();
+    });
   });
 
   syncControls();
@@ -426,8 +428,9 @@ function syncControls() {
   // Granular rows are Custom-only — named presets keep the panel compact.
   const customRows = root.querySelector('#sipCustomRows');
   if (customRows) customRows.style.display = (choice === 'custom') ? '' : 'none';
-  const wOpt = WEATHER_OPTS.find(o => String(o.v) === String(S.weather));
-  root.querySelector('#sipWeather').textContent = wOpt ? wOpt.label : 'Auto';
+  root.querySelectorAll('#sipWeather [data-w]').forEach((b) => {
+    b.classList.toggle('on', String(b.dataset.w) === String(S.weather));
+  });
 }
 
 // ============================================================
@@ -612,6 +615,7 @@ function injectStyles() {
   .sip-seg button.on {
     background: rgba(255,255,255,0.88); color: #16202a; border-color: #fff;
   }
+  #sipWeather button { font-size: 14px; padding: 5px 2px; }
   /* Custom tooltip (styled, replaces the native title bubble) */
   .sip-scan::after {
     content: attr(data-tip);

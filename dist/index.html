@@ -333,41 +333,30 @@
   .scene-curtain.lifted {
     opacity: 0;
   }
+  /* The title doubles as the loading indicator: the letters fill bottom-up
+     with lagoon turquoise as assets arrive (--fill driven by landing.js). */
+  @property --fill { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
   .curtain-title {
     font-family: 'Tahiti', serif;
     font-size: clamp(2rem, 7vw, 3.6rem);
-    color: #c5beb0;
     letter-spacing: 0.08em;
     text-align: center;
     line-height: 1.1;
     padding: 0 24px;
+    --fill: 0%;
+    background: linear-gradient(to top,
+      #7fd0c6 0%, #9fe0d8 var(--fill),
+      #c5beb0 var(--fill), #c5beb0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    transition: --fill 0.35s ease;
     animation: curtainBreathe 2.6s ease-in-out infinite;
   }
   @keyframes curtainBreathe {
     0%, 100% { opacity: 0.45; }
     50%      { opacity: 1; }
-  }
-  /* Pastel lagoon loading bar — fill driven by landing.js */
-  .curtain-bar {
-    width: min(260px, 56vw);
-    height: 4px;
-    margin-top: 26px;
-    border-radius: 999px;
-    background: rgba(110, 190, 182, 0.18);
-    overflow: hidden;
-  }
-  .curtain-bar-fill {
-    width: 0%;
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #bfe9e4, #8fd8cf);
-    transition: width 0.35s ease;
-  }
-  .curtain-status {
-    margin-top: 12px;
-    font: 400 12px/1 system-ui, -apple-system, sans-serif;
-    color: #c5beb0;
-    letter-spacing: 0.04em;
   }
 
   @keyframes fadeInUp {
@@ -380,17 +369,15 @@
     100% { transform: translateY(105vh) translateX(var(--drift)) rotate(var(--spin)); opacity: 0; }
   }
 </style>
-  <script type="module" crossorigin src="/assets/main-DXDuu3Oy.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/terrain-D5SZiOld.js">
+  <script type="module" crossorigin src="/assets/main-B48A_6e9.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/terrain-Bm-AKbHm.js">
 </head>
 <body>
 
 <!-- White curtain — hides the scene until the game module + assets are loaded.
      landing.js lifts it (asset-idle gate + 15s safety cap). -->
 <div class="scene-curtain" id="sceneCurtain">
-  <div class="curtain-title">Stranded in Paradise</div>
-  <div class="curtain-bar"><div class="curtain-bar-fill" id="curtainBarFill"></div></div>
-  <div class="curtain-status" id="curtainStatus">loading paradise&hellip;</div>
+  <div class="curtain-title" id="curtainTitle">Stranded in Paradise</div>
 </div>
 
 <!-- Landing splash deleted — this is a persistent wallpaper; the root boots straight

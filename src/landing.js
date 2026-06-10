@@ -342,11 +342,24 @@ function liftCurtain() {
 
 const _curtainTitleEl = document.getElementById('curtainTitle');
 
+// Displayed fill rises smoothly: real progress is per-ITEM (the palm GLB is
+// one big item, so raw progress parks at ~0 then leaps), so we blend it with
+// a time-based creep toward 90% and ease the shown value toward the blend.
+// Monotonic; snaps to 100% at lift.
+let _fillShown = 0;
+
 const _curtainPoll = setInterval(() => {
   const now = performance.now();
   const assetsIdle = !_loaderBusy && (now - _loaderIdleSince >= CURTAIN_IDLE_GRACE_MS);
-  const progress = _assetRatio * 0.85 + (window._mainReady ? 0.15 : 0);
-  if (_curtainTitleEl) _curtainTitleEl.style.setProperty('--fill', Math.round(progress * 100) + '%');
+  const real = _assetRatio * 0.85 + (window._mainReady ? 0.15 : 0);
+  // Front-loaded creep: most of the fill happens in the first couple of
+  // seconds (τ≈1.1s → ~55% at 1s, ~77% at 2s), so even a fast dev load
+  // reads as a steady flood rather than a last-moment jump. Long loads
+  // park near 92% until real progress completes.
+  const creep = 0.92 * (1 - Math.exp(-(now - _curtainT0) / 1100));
+  const target = Math.min(0.98, Math.max(real, creep));
+  if (target > _fillShown) _fillShown += (target - _fillShown) * 0.25;
+  if (_curtainTitleEl) _curtainTitleEl.style.setProperty('--fill', (_fillShown * 100).toFixed(1) + '%');
   if ((window._mainReady && assetsIdle) || (now - _curtainT0 >= CURTAIN_MAX_WAIT_MS)) {
     clearInterval(_curtainPoll);
     if (_curtainTitleEl) _curtainTitleEl.style.setProperty('--fill', '100%');

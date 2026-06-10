@@ -41,6 +41,7 @@ import { updateRockLOD, initRocks } from './rocks.js'; // Procedural rock system
 import { initSlabScatter } from './slab-scatter.js'; // Stone slab placement (Layer 3)
 import { initBirds, updateBirds } from './birds.js'; // Circling/landing seagulls (daytime)
 import { initFish, updateFish } from './fish.js'; // Schooling reef fish over the reef (daytime)
+import { initSealife, updateSealife } from './sealife.js'; // Sea turtle — cruises the lagoon, surfaces to breathe (daytime)
 
 import { getPanLimit, rotateCam, cycleCam } from './camera.js';
 import { initSettings } from './settings.js';
@@ -736,6 +737,7 @@ function animate() {
   tickCrumbleParticles(ecoDt);
   updateBirds(t, ecoDt);
   updateFish(t, ecoDt);
+  updateSealife(t, ecoDt);
   window._lastEcoT = t;
 
   // Player update (movement, surface following, rotation)
@@ -1619,3 +1621,7 @@ initBirds();
 
 // Reef fish — school over the reef rocks, scatter from the diver (daytime only)
 initFish();
+
+// Sea turtle — cruises the mid-lagoon, surfaces to breathe, occasional close
+// pass through the foreground shallows (daytime only, surface-first)
+initSealife();

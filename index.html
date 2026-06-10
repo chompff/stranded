@@ -333,9 +333,18 @@
   .scene-curtain.lifted {
     opacity: 0;
   }
-  /* The title doubles as the loading indicator: the letters fill bottom-up
-     with lagoon turquoise as assets arrive (--fill driven by landing.js). */
-  @property --fill { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+  /* The title doubles as the loading indicator: a turquoise copy of the
+     letters is revealed bottom-up by a translate-pair clip (the outer clip
+     slides down while the inner copy counter-slides up, so the text never
+     moves on screen). Transform animations run on the COMPOSITOR thread,
+     so the fill keeps rising even while the main thread is blocked
+     evaluating the game modules — a JS-driven fill freezes at ~0% during
+     exactly the heaviest part of boot. The creep is time-based and parks
+     near 90%; landing.js adds .filled at lift to finish the pour. */
+  .curtain-title-stack {
+    position: relative;
+    animation: curtainBreathe 2.6s ease-in-out infinite;
+  }
   .curtain-title {
     font-family: 'Tahiti', serif;
     font-size: clamp(2rem, 7vw, 3.6rem);
@@ -343,17 +352,34 @@
     text-align: center;
     line-height: 1.1;
     padding: 0 24px;
-    --fill: 0%;
-    background: linear-gradient(to top,
-      #7fd0c6 0%, #9fe0d8 var(--fill),
-      #c5beb0 var(--fill), #c5beb0 100%);
+  }
+  .curtain-title-base { color: #c5beb0; }
+  .curtain-title-clip {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    transform: translateY(98%);
+    animation: curtainClipCreep 2.8s cubic-bezier(0.22, 0.61, 0.36, 1) 0.15s forwards;
+    will-change: transform;
+  }
+  .curtain-title-fillmove {
+    transform: translateY(-98%);
+    animation: curtainFillCreep 2.8s cubic-bezier(0.22, 0.61, 0.36, 1) 0.15s forwards;
+    will-change: transform;
+  }
+  .curtain-title-fill {
+    background: linear-gradient(to top, #7fd0c6 0%, #9fe0d8 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
-    transition: --fill 0.35s ease;
-    animation: curtainBreathe 2.6s ease-in-out infinite;
   }
+  @keyframes curtainClipCreep { to { transform: translateY(10%); } }
+  @keyframes curtainFillCreep { to { transform: translateY(-10%); } }
+  .curtain-title-clip.filled { animation: curtainClipDone 0.45s ease forwards; }
+  .curtain-title-fillmove.filled { animation: curtainFillDone 0.45s ease forwards; }
+  @keyframes curtainClipDone { to { transform: translateY(0); } }
+  @keyframes curtainFillDone { to { transform: translateY(0); } }
   @keyframes curtainBreathe {
     0%, 100% { opacity: 0.45; }
     50%      { opacity: 1; }
@@ -375,7 +401,14 @@
 <!-- White curtain — hides the scene until the game module + assets are loaded.
      landing.js lifts it (asset-idle gate + 15s safety cap). -->
 <div class="scene-curtain" id="sceneCurtain">
-  <div class="curtain-title" id="curtainTitle">Stranded in Paradise</div>
+  <div class="curtain-title-stack">
+    <div class="curtain-title curtain-title-base">Stranded in Paradise</div>
+    <div class="curtain-title-clip" id="curtainClip">
+      <div class="curtain-title-fillmove" id="curtainFillMove">
+        <div class="curtain-title curtain-title-fill">Stranded in Paradise</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Landing splash deleted — this is a persistent wallpaper; the root boots straight

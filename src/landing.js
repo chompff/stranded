@@ -314,23 +314,19 @@ function updateWaterline(t) {
 // cap guarantees the curtain always lifts even if an asset stalls.
 // The graphics scan is NOT in this path — it runs only on request via
 // Settings → Graphics → "Scan this device", so boot stays fast.
-// Progress = the title letters filling bottom-up with lagoon turquoise
-// (--fill custom property): assets 85% + game module 15%.
+// The title-letter fill is a pure-CSS compositor animation (index.html) so
+// it keeps rising while the main thread is busy evaluating modules — here
+// we only finish the pour (.filled) at lift.
 // ============================================================
 const CURTAIN_IDLE_GRACE_MS = 400;  // loader must stay idle this long (bridges back-to-back loads)
 const CURTAIN_MAX_WAIT_MS = 15000;  // absolute cap — never strand the user on white
 const _curtainT0 = performance.now();
 let _loaderBusy = false;
 let _loaderIdleSince = performance.now();
-let _assetRatio = 0;                // monotonic: itemsTotal grows as loads queue
 THREE.DefaultLoadingManager.onStart = () => { _loaderBusy = true; };
-THREE.DefaultLoadingManager.onProgress = (url, loaded, total) => {
-  if (total > 0) _assetRatio = Math.max(_assetRatio, loaded / total);
-};
 THREE.DefaultLoadingManager.onLoad = () => {
   _loaderBusy = false;
   _loaderIdleSince = performance.now();
-  _assetRatio = 1;
 };
 
 function liftCurtain() {
@@ -340,29 +336,17 @@ function liftCurtain() {
   setTimeout(() => { if (curtain) curtain.remove(); }, 2000);
 }
 
-const _curtainTitleEl = document.getElementById('curtainTitle');
-
-// Displayed fill rises smoothly: real progress is per-ITEM (the palm GLB is
-// one big item, so raw progress parks at ~0 then leaps), so we blend it with
-// a time-based creep toward 90% and ease the shown value toward the blend.
-// Monotonic; snaps to 100% at lift.
-let _fillShown = 0;
+const _curtainClipEl = document.getElementById('curtainClip');
+const _curtainFillMoveEl = document.getElementById('curtainFillMove');
 
 const _curtainPoll = setInterval(() => {
   const now = performance.now();
   const assetsIdle = !_loaderBusy && (now - _loaderIdleSince >= CURTAIN_IDLE_GRACE_MS);
-  const real = _assetRatio * 0.85 + (window._mainReady ? 0.15 : 0);
-  // Front-loaded creep: most of the fill happens in the first couple of
-  // seconds (τ≈1.1s → ~55% at 1s, ~77% at 2s), so even a fast dev load
-  // reads as a steady flood rather than a last-moment jump. Long loads
-  // park near 92% until real progress completes.
-  const creep = 0.92 * (1 - Math.exp(-(now - _curtainT0) / 1100));
-  const target = Math.min(0.98, Math.max(real, creep));
-  if (target > _fillShown) _fillShown += (target - _fillShown) * 0.25;
-  if (_curtainTitleEl) _curtainTitleEl.style.setProperty('--fill', (_fillShown * 100).toFixed(1) + '%');
   if ((window._mainReady && assetsIdle) || (now - _curtainT0 >= CURTAIN_MAX_WAIT_MS)) {
     clearInterval(_curtainPoll);
-    if (_curtainTitleEl) _curtainTitleEl.style.setProperty('--fill', '100%');
+    // Finish the pour — the compositor-driven creep parks near 90%.
+    if (_curtainClipEl) _curtainClipEl.classList.add('filled');
+    if (_curtainFillMoveEl) _curtainFillMoveEl.classList.add('filled');
     liftCurtain();
   }
 }, 100);

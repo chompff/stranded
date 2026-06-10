@@ -185,8 +185,12 @@ function buildUI() {
       </div>
       <div class="sip-sec">
         <div class="sip-h">Graphics</div>
-        <div class="sip-row"><span>Quality</span>
-          <button type="button" class="sip-cyc" id="sipPreset"></button>
+        <div class="sip-row"><span>Quality</span></div>
+        <div class="sip-seg" id="sipPreset">
+          <button type="button" data-p="low">Low</button>
+          <button type="button" data-p="medium">Medium</button>
+          <button type="button" data-p="high">High</button>
+          <button type="button" data-p="custom">Custom</button>
         </div>
         <div class="sip-gauge" id="sipGauge" title="Estimated share of this device's total CPU the game is using — the dial fills toward the 5% wallpaper budget.">
           <svg viewBox="0 0 120 78" width="100%" height="78">
@@ -262,7 +266,10 @@ function buildUI() {
     saveSettings();
     syncControls();
     updateGauge();
-    if (needsReload()) { location.reload(); return; }
+    // Only the two construction-locked rows (labelled "reloads") may force a
+    // reload — and only when their new value actually differs from how the
+    // page was built. Preset drift from deferred scans/choices never does.
+    if ((k === 'antialias' || k === 'waterDetail') && needsReload()) { location.reload(); return; }
     applyGraphicsLive();
   }
   wrap.querySelectorAll('input[data-g]').forEach((el) => {
@@ -308,24 +315,26 @@ function buildUI() {
     }, 4000);
   });
 
-  // Quality cycle button: Low → Medium → High → Custom → Low …
-  const PRESET_CYCLE = ['low', 'medium', 'high', 'custom'];
-  wrap.querySelector('#sipPreset').addEventListener('click', () => {
-    const cur = (S.gfxPreset === 'custom') ? 'custom' : detectPreset();
-    const name = PRESET_CYCLE[(PRESET_CYCLE.indexOf(cur) + 1) % PRESET_CYCLE.length];
-    if (name === 'custom') {
-      // Unlock the granular controls, pre-populated with the current values —
-      // nothing changes until the player tweaks a row.
-      S.gfxPreset = 'custom';
-      saveSettings();
+  // Quality — radio segments: one click straight to the target preset, and
+  // NEVER a forced reload. Antialias / water detail are construction-locked,
+  // so (like the scan) they complete silently on the next natural page load;
+  // everything else from the preset applies live.
+  wrap.querySelectorAll('#sipPreset [data-p]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.p;
+      if (name === 'custom') {
+        // Unlock the granular controls, pre-populated with the current values —
+        // nothing changes until the player tweaks a row.
+        S.gfxPreset = 'custom';
+        saveSettings();
+        syncControls();
+        return;
+      }
+      applyPreset(name);
       syncControls();
-      return;
-    }
-    applyPreset(name);
-    syncControls();
-    updateGauge();
-    if (needsReload()) { location.reload(); return; }
-    applyGraphicsLive();
+      updateGauge();
+      applyGraphicsLive();
+    });
   });
 
   // Weather cycle button: Auto → Clear → Cloudy → Mist → Rain → Auto …
@@ -371,9 +380,10 @@ function syncControls() {
   root.querySelector('[data-g="pauseHidden"]').checked = !!g.pauseHidden;
   root.querySelector('[data-g="antialias"]').checked = !!g.antialias;
   root.querySelector('[data-g="waterDetail"]').textContent = g.waterDetail === 'low' ? 'Low' : 'High';
-  const presetBtn = root.querySelector('#sipPreset');
   const choice = (S.gfxPreset === 'custom') ? 'custom' : detectPreset();
-  presetBtn.textContent = choice.charAt(0).toUpperCase() + choice.slice(1);
+  root.querySelectorAll('#sipPreset [data-p]').forEach((b) => {
+    b.classList.toggle('on', b.dataset.p === choice);
+  });
   // Granular rows are Custom-only — named presets keep the panel compact.
   const customRows = root.querySelector('#sipCustomRows');
   if (customRows) customRows.style.display = (choice === 'custom') ? '' : 'none';
@@ -549,6 +559,20 @@ function injectStyles() {
   }
   .sip-cyc::after { content: ' ›'; opacity: 0.55; }
   .sip-cyc:hover { background: rgba(255,255,255,0.12); }
+  /* Segmented radio row (Quality) — one click straight to the target,
+     no cycling through intermediate presets */
+  .sip-seg { display: flex; gap: 4px; margin: 2px 0 10px; }
+  .sip-seg button {
+    flex: 1; padding: 7px 2px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(0,0,0,0.35); color: #fff;
+    font: 600 10.5px/1 system-ui, sans-serif;
+    cursor: pointer; transition: background .2s, color .2s;
+  }
+  .sip-seg button:hover { background: rgba(255,255,255,0.12); }
+  .sip-seg button.on {
+    background: rgba(255,255,255,0.88); color: #16202a; border-color: #fff;
+  }
   /* Custom tooltip (styled, replaces the native title bubble) */
   .sip-scan::after {
     content: attr(data-tip);

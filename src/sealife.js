@@ -107,6 +107,7 @@ function sampleFloor(x, z) {
 // once per frame in updateSealife. Fresh for a short window after the move.
 let _curNdcX = 0, _curNdcY = 0, _curMovedAt = -1e9, _curDirty = false;
 const _cursorPt = new THREE.Vector3();   // where the cursor ray meets y=0
+const _cursorDir = new THREE.Vector3();  // normalized camera→cursor ray direction
 let _cursorFresh = false;
 window.addEventListener('pointermove', (e) => {
   if (buildState.active) return;
@@ -121,6 +122,7 @@ function refreshCursorPoint(nowMs) {
   if (!_cursorFresh) return;
   _v1.set(_curNdcX, _curNdcY, 0.5).unproject(camera);
   _v1.sub(camera.position).normalize();
+  _cursorDir.copy(_v1);                                 // ray direction (for ray-proximity tests)
   if (_v1.y > -1e-4) { _cursorFresh = false; return; }  // looking up — no water hit
   const t = -camera.position.y / _v1.y;
   _cursorPt.copy(camera.position).addScaledVector(_v1, t);
@@ -130,6 +132,7 @@ function refreshCursorPoint(nowMs) {
 // re-projecting it — one unproject per frame, shared across creatures.
 export function isCursorFresh() { return _cursorFresh; }
 export function cursorWater() { return _cursorPt; }
+export function cursorRayDir() { return _cursorDir; }   // normalized camera→cursor ray
 
 // Generic "steer away from a point" helper. Adds to _acc.
 function fleeFrom(px, py, pz, pos, radius, weight) {

@@ -30,6 +30,7 @@ const REEF_CZ        = -150;          // anchor centre Z (in front of home beach
 const REEF_CLEARANCE = 4.6;           // anchor band height above the reef floor (rides high in the water column)
 const ANCHOR_RADIUS  = 6.5;           // horizontal radius of the shoaling volume — tightened so the school holds the foreground strip instead of drifting out of frame (was 8.5)
 const ANCHOR_BAND    = 1.8;           // vertical half-extent of the shoaling band (tight — stays up in view)
+const PEN_RADIUS     = 7.0;           // HARD wall from the anchor — fish can never drift past it (keeps the whole school on-screen)
 
 const FISH_SCALE     = 0.40;          // overall size multiplier (~0.24m long — a fraction of a gull)
 const SURFACE_Y      = -0.5;          // never rise above this (stay under the surface)
@@ -403,6 +404,19 @@ function updateFish_(t, dt, playerActive, cdir) {
     const floorHard = fi.floorY + FLOOR_MIN;
     if (pi.y < floorHard) { pi.y = floorHard; if (fi.vel.y < 0) fi.vel.y = 0; }
     if (pi.y > SURFACE_Y + 0.3) { pi.y = SURFACE_Y + 0.3; if (fi.vel.y > 0) fi.vel.y = 0; }
+
+    // ── Hard pen — never drift off-screen: clamp to PEN_RADIUS of the anchor and
+    // shed only the OUTWARD velocity, so a cursor-pushed fish slides along the
+    // wall (and curls back in) rather than leaving the viewport ──
+    const penX = pi.x - REEF_CX, penZ = pi.z - REEF_CZ;
+    const penD = Math.hypot(penX, penZ);
+    if (penD > PEN_RADIUS) {
+      const nx = penX / penD, nz = penZ / penD;
+      pi.x = REEF_CX + nx * PEN_RADIUS;
+      pi.z = REEF_CZ + nz * PEN_RADIUS;
+      const vOut = fi.vel.x * nx + fi.vel.z * nz;
+      if (vOut > 0) { fi.vel.x -= vOut * nx; fi.vel.z -= vOut * nz; }
+    }
 
     // ── Orientation + tail wiggle (speed-scaled), then write instance matrices ──
     faceTravel(fi, dt);

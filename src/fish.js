@@ -52,19 +52,21 @@ const FLEE_W         = 26.0;          // steer-away from the diver (the scatter)
 const SCARE_RADIUS   = 9.0;           // diver this close (underwater) → school parts
 const TURN_RATE      = 3.0;           // heading/orientation easing
 
-// School bolt — the WHOLE school reacts as one: an instant, fast, unified dart
-// away from the cursor, then it eases back to lazy shoaling. Detection uses the
-// camera→cursor RAY (does it pass near the school?), which is immune to the
-// grazing-angle error of projecting the cursor onto the water plane.
-const SCHOOL_SCARE_R = 7.0;           // cursor ray within this of the NEAREST fish → bolt (can't park on any single fish)
-const BOLT_SPEED     = 6.0;           // dart speed — many× the lazy cruise, so it reads as an instant bolt
-const BOLT_DURATION  = 0.85;          // seconds the dart holds before easing back
+// Cursor avoidance — fish smoothly CURL AROUND the pointer (mouseover-local, no
+// scare radius). A per-fish steering force: a gentle push away from the cursor
+// RAY plus a tangential swirl (aligned with the fish's heading) so it flows
+// around rather than bouncing off. Cohesion streams the school around and back
+// together behind it. Always-live, so a stationary pointer is still flowed around.
+const AVOID_R     = 3.0;              // only fish whose ray-distance is under this react (tight — "on the fish")
+const AVOID_W     = 8.0;              // push-away strength (gentle, smoothstep-eased)
+const CURL_W      = 10.0;             // tangential swirl — > push, so they arc AROUND the pointer
+const AVOID_SPEED = 2.0;              // speed cap while flowing around (a touch above the lazy cruise)
 
 // Precomputed squares
 const PERCEPTION2 = PERCEPTION * PERCEPTION;
 const SEP2        = SEP_DIST * SEP_DIST;
 const SCARE2      = SCARE_RADIUS * SCARE_RADIUS;
-const SCHOOL_SCARE2 = SCHOOL_SCARE_R * SCHOOL_SCARE_R;
+const AVOID_R2    = AVOID_R * AVOID_R;
 
 const TAIL_HINGE_Z = -0.27;           // local Z the caudal fin pivots about
 
@@ -90,11 +92,8 @@ const _coh = new THREE.Vector3();
 const _ali = new THREE.Vector3();
 const _sep = new THREE.Vector3();
 const _player = new THREE.Vector3();
-const _centroid = new THREE.Vector3();   // school centre (the school reacts as one)
-const _boltVel  = new THREE.Vector3();   // shared dart velocity — all fish move together
-const _rayTmp   = new THREE.Vector3();
-const _closest  = new THREE.Vector3();
-let _boltTimer = 0;                       // seconds remaining in the current bolt
+const _rayTmp   = new THREE.Vector3();   // camera→fish vector (cursor-avoid maths)
+const _closest  = new THREE.Vector3();   // closest point on the cursor ray to a fish
 const _scaleV = new THREE.Vector3(FISH_SCALE, FISH_SCALE, FISH_SCALE);
 const _mBody = new THREE.Matrix4();
 const _mTail = new THREE.Matrix4();
@@ -285,9 +284,8 @@ function faceTravel(f, dt) {
   }
 }
 
-function updateFish_(t, dt, playerActive) {
+function updateFish_(t, dt, playerActive, cdir) {
   const n = fish.length;
-  const bolting = _boltTimer > 0;
 
   for (let i = 0; i < n; i++) {
     const fi = fish[i];
@@ -322,45 +320,27 @@ function updateFish_(t, dt, playerActive) {
     }
     _acc.addScaledVector(_sep, SEP_W);
 
-    // ── Calm-only forces: idle wander, reef anchor, diver scatter ──
-    // Suppressed during a bolt so nothing drags against the unified dart.
-    if (!bolting) {
-      // Wander: a slowly drifting idle heading + gentle vertical bob.
-      fi.wanderAngle += (Math.random() - 0.5) * 2.4 * dt;
-      _acc.x += Math.sin(fi.wanderAngle) * WANDER_W;
-      _acc.z += Math.cos(fi.wanderAngle) * WANDER_W;
-      _acc.y += Math.sin(t * 0.5 + fi.bobPhase) * 0.25 * WANDER_W;
+    // ── Wander: a slowly drifting idle heading + gentle vertical bob ──
+    fi.wanderAngle += (Math.random() - 0.5) * 2.4 * dt;
+    _acc.x += Math.sin(fi.wanderAngle) * WANDER_W;
+    _acc.z += Math.cos(fi.wanderAngle) * WANDER_W;
+    _acc.y += Math.sin(t * 0.5 + fi.bobPhase) * 0.25 * WANDER_W;
 
-      // Anchor pull: stay near the reef volume (horizontal + vertical band).
-      const ax = REEF_CX - pi.x, az = REEF_CZ - pi.z;
-      const hDist = Math.hypot(ax, az);
-      if (hDist > ANCHOR_RADIUS) {
-        const over = (hDist - ANCHOR_RADIUS) / ANCHOR_RADIUS;
-        const inv = 1 / (hDist || 1);
-        _acc.x += ax * inv * ANCHOR_W * (1 + over);
-        _acc.z += az * inv * ANCHOR_W * (1 + over);
-      }
-      const dyBand = _anchorY - pi.y;
-      if (Math.abs(dyBand) > ANCHOR_BAND) {
-        _acc.y += Math.sign(dyBand) * ANCHOR_W * 0.8;
-      }
-
-      // Diver avoidance — the "part & scatter" (only underwater & near).
-      if (playerActive) {
-        const dpx = pi.x - _player.x, dpy = pi.y - _player.y, dpz = pi.z - _player.z;
-        const dp2 = dpx * dpx + dpy * dpy + dpz * dpz;
-        if (dp2 < SCARE2 && dp2 > 1e-4) {
-          const dp = Math.sqrt(dp2);
-          const strength = FLEE_W * (1 - dp / SCARE_RADIUS); // hardest up close
-          const inv = 1 / dp;
-          _acc.x += dpx * inv * strength;
-          _acc.y += dpy * inv * strength;
-          _acc.z += dpz * inv * strength;
-        }
-      }
+    // ── Anchor pull: stay near the reef volume (horizontal + vertical band) ──
+    const ax = REEF_CX - pi.x, az = REEF_CZ - pi.z;
+    const hDist = Math.hypot(ax, az);
+    if (hDist > ANCHOR_RADIUS) {
+      const over = (hDist - ANCHOR_RADIUS) / ANCHOR_RADIUS;
+      const inv = 1 / (hDist || 1);
+      _acc.x += ax * inv * ANCHOR_W * (1 + over);
+      _acc.z += az * inv * ANCHOR_W * (1 + over);
+    }
+    const dyBand = _anchorY - pi.y;
+    if (Math.abs(dyBand) > ANCHOR_BAND) {
+      _acc.y += Math.sign(dyBand) * ANCHOR_W * 0.8;
     }
 
-    // ── Floor avoidance (raycast-sampled floor) & surface avoidance (always) ──
+    // ── Floor avoidance (raycast-sampled floor) & surface avoidance ──
     const floorSoft = fi.floorY + FLOOR_CLEAR;
     if (pi.y < floorSoft) {
       _acc.y += (floorSoft - pi.y) * FLOOR_W;
@@ -369,24 +349,54 @@ function updateFish_(t, dt, playerActive) {
       _acc.y -= (pi.y - SURFACE_Y) * SURFACE_W;
     }
 
-    // ── Integrate ──
-    if (bolting) {
-      // Instant, unified dart: ease velocity toward the shared bolt vector so
-      // the whole school moves AS ONE. Cohesion/separation (in _acc) keep the
-      // cluster tight; floor/surface still steer y.
-      const k = Math.min(1, dt * 14);
-      fi.vel.x += (_boltVel.x - fi.vel.x) * k;
-      fi.vel.z += (_boltVel.z - fi.vel.z) * k;
-      fi.vel.addScaledVector(_acc, dt * 0.5);
-    } else {
-      fi.vel.addScaledVector(_acc, dt);
+    // ── Diver avoidance — the "part & scatter" (only underwater & near) ──
+    if (playerActive) {
+      const dpx = pi.x - _player.x, dpy = pi.y - _player.y, dpz = pi.z - _player.z;
+      const dp2 = dpx * dpx + dpy * dpy + dpz * dpz;
+      if (dp2 < SCARE2 && dp2 > 1e-4) {
+        const dp = Math.sqrt(dp2);
+        const strength = FLEE_W * (1 - dp / SCARE_RADIUS); // hardest up close
+        const inv = 1 / dp;
+        _acc.x += dpx * inv * strength;
+        _acc.y += dpy * inv * strength;
+        _acc.z += dpz * inv * strength;
+      }
     }
 
-    // ── Speed clamp — a bolt may run fast; lazy cruise otherwise ──
-    const maxSp = bolting ? BOLT_SPEED : MAX_SPEED;
+    // ── Cursor curl — smoothly flow AROUND the pointer when it's on this fish ──
+    // Distance is to the camera→cursor RAY (robust). Only the few fish under the
+    // pointer react (mouseover, no scare radius); the force is a smoothstep-eased
+    // push-away plus a tangential swirl swung to the fish's heading, so it arcs
+    // around rather than bolting. Cohesion streams the school around it.
+    let avoiding = false;
+    if (cdir) {
+      _rayTmp.subVectors(pi, camera.position);
+      const along = _rayTmp.dot(cdir);
+      if (along > 0) {
+        _closest.copy(camera.position).addScaledVector(cdir, along);
+        const cx = pi.x - _closest.x, cy = pi.y - _closest.y, cz = pi.z - _closest.z;
+        const perp2 = cx * cx + cy * cy + cz * cz;
+        if (perp2 < AVOID_R2) {
+          const perp = Math.sqrt(perp2);
+          const ad = Math.hypot(cx, cz) || 1e-3;
+          const fall = smoothstep(AVOID_R, 0, perp);       // 1 right on the pointer → 0 at the edge
+          _acc.x += (cx / ad) * AVOID_W * fall;            // push away (horizontal)
+          _acc.z += (cz / ad) * AVOID_W * fall;
+          let tx = -cz / ad, tz = cx / ad;                 // tangential swirl…
+          if (fi.vel.x * tx + fi.vel.z * tz < 0) { tx = -tx; tz = -tz; } // …swung to match heading
+          _acc.x += tx * CURL_W * fall;
+          _acc.z += tz * CURL_W * fall;
+          avoiding = true;
+        }
+      }
+    }
+
+    // ── Integrate velocity, clamp speed (a touch quicker while curling) ──
+    fi.vel.addScaledVector(_acc, dt);
+    const maxSp = avoiding ? AVOID_SPEED : MAX_SPEED;
     let sp = fi.vel.length();
     if (sp > maxSp) fi.vel.multiplyScalar(maxSp / sp);
-    else if (!bolting && sp < MIN_SPEED && sp > 1e-4) fi.vel.multiplyScalar(MIN_SPEED / sp);
+    else if (sp < MIN_SPEED && sp > 1e-4) fi.vel.multiplyScalar(MIN_SPEED / sp);
 
     // ── Move, then hard-clamp inside the floor↔surface volume ──
     pi.addScaledVector(fi.vel, dt);
@@ -464,44 +474,8 @@ export function updateFish(t, dt) {
 
   const cdt = Math.min(0.05, dt);
 
-  // ── School centroid + nearest fish to the cursor ray (one pass) ──
-  const n = fish.length;
-  const dir = isCursorPresent() ? cursorRayDir() : null;
-  _centroid.set(0, 0, 0);
-  let minPerp2 = Infinity;
-  for (let i = 0; i < n; i++) {
-    const p = fish[i].pos;
-    _centroid.add(p);
-    if (dir) {
-      _rayTmp.subVectors(p, camera.position);
-      const along = _rayTmp.dot(dir);                    // closest-approach distance along the ray
-      if (along > 0) {
-        _closest.copy(camera.position).addScaledVector(dir, along);
-        const perp2 = _closest.distanceToSquared(p);
-        if (perp2 < minPerp2) minPerp2 = perp2;
-      }
-    }
-  }
-  _centroid.divideScalar(n);
-
-  // ── Cursor spook → instant, unified bolt ──
-  // Detect on the NEAREST fish to the camera→cursor ray (so no single fish can
-  // be parked on), and ALWAYS-LIVE (not gated on recent movement) so a still
-  // cursor keeps repelling — it's impossible to keep a fish under the pointer.
-  // The whole school then darts AS ONE, away from where the pointer is aimed.
-  if (dir && minPerp2 < SCHOOL_SCARE2) {
-    _rayTmp.subVectors(_centroid, camera.position);
-    const alongC = Math.max(0, _rayTmp.dot(dir));
-    _closest.copy(camera.position).addScaledVector(dir, alongC);
-    _boltVel.set(_centroid.x - _closest.x, 0, _centroid.z - _closest.z);
-    if (_boltVel.lengthSq() < 0.05) _boltVel.set(_centroid.x - camera.position.x, 0, _centroid.z - camera.position.z);
-    _boltVel.normalize().multiplyScalar(BOLT_SPEED);
-    const wasBolting = _boltTimer > 0;
-    _boltTimer = BOLT_DURATION;
-    // Instant: on first contact, snap every fish onto the shared dart.
-    if (!wasBolting) for (let i = 0; i < n; i++) fish[i].vel.set(_boltVel.x, 0, _boltVel.z);
-  }
-  if (_boltTimer > 0) _boltTimer -= cdt;
-
-  updateFish_(t, cdt, playerActive);
+  // Cursor ray (shared, always-live once the pointer has been seen). The
+  // per-fish curl-around lives in updateFish_ — no school-wide detection here.
+  const cdir = isCursorPresent() ? cursorRayDir() : null;
+  updateFish_(t, cdt, playerActive, cdir);
 }

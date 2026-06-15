@@ -10,7 +10,7 @@
 //  • NEVER renders in wallpaper mode. Detection is the deterministic
 //    triple from the spec: `?desktop` in the URL (the link we distribute
 //    to hosts), `window.livelyPropertyListener` (Lively) or
-//    `window.wallpaperPropertyListener` (Wallpaper Engine) — checked at
+//    `window.wallpaperRegisterAudioListener` (Wallpaper Engine) — checked at
 //    load AND re-checked after a delay, because hosts inject their
 //    listeners late. `?wallpaper=1` (legacy flag) is honoured too.
 //    NOTE: the audio guard's `window._isWallpaper` is intentionally NOT
@@ -44,7 +44,10 @@ function isWallpaperContext() {
   const q = new URLSearchParams(location.search);
   if (q.has('desktop') || q.get('wallpaper') === '1') return true;
   if (typeof window.livelyPropertyListener !== 'undefined') return true;     // Lively
-  if (typeof window.wallpaperPropertyListener !== 'undefined') return true;  // Wallpaper Engine
+  // WE injects `wallpaperRegisterAudioListener` (a function) — that's the global a
+  // wallpaper can DETECT. `wallpaperPropertyListener` is page-DEFINED (WE only calls
+  // it), so it's never set on our pages and checking it never fired. See WE docs.
+  if (typeof window.wallpaperRegisterAudioListener === 'function') return true;  // Wallpaper Engine
   return false;
 }
 

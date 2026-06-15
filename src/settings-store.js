@@ -28,7 +28,7 @@ function defaults() {
     showTime: false,     // clock hidden by default (Interface → Show time)
     hideGear: false,     // settings wheel visible by default (hover-reveal when hidden)
     showPlayer: false,   // character hidden by default (Interface → Show character)
-    weather: 'auto',     // 'auto' | 0..3
+    weather: 'local',    // 'local' (real weather) | 'auto' (procedural) | 0..3
     gfxPreset: preset,
     gfx: { ...GFX_PRESETS[preset] },
   };

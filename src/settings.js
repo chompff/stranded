@@ -18,6 +18,7 @@ import {
 import { version as APP_VERSION } from '../package.json';
 
 const WEATHER_OPTS = [
+  { v: 'local', label: 'Local', icon: '📍' },
   { v: 'auto', label: 'Auto', icon: 'Auto' },
   { v: '0', label: 'Clear', icon: '☀️' },
   { v: '1', label: 'Cloudy', icon: '☁️' },
@@ -40,6 +41,14 @@ export function initSettings() {
   // Clears a legacy saved "on" once; the Interface toggle still works and
   // sticks for anyone who deliberately re-enables it.
   if (S.migClockOff !== 1) { S.migClockOff = 1; S.showTime = false; saveSettings(); }
+  // One-time migration: real local weather ('local') is the new default Sky
+  // mode. Move anyone still on the old default ('auto', procedural) onto it
+  // once; a deliberate pick (a fixed sky, or re-selecting Auto) sticks.
+  if (S.migWeatherLocal !== 1) {
+    S.migWeatherLocal = 1;
+    if (S.weather === 'auto') S.weather = 'local';
+    saveSettings();
+  }
   // Wallpaper boots are born silent: on the wallpaper page (root, or any
   // page with ?wallpaper=1) saved audio toggles are ignored at startup.
   // The gear still works for the session — but a desktop wallpaper can
@@ -384,7 +393,7 @@ function buildUI() {
   wrap.querySelectorAll('#sipWeather [data-w]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const v = btn.dataset.w;
-      S.weather = v === 'auto' ? 'auto' : parseInt(v, 10);
+      S.weather = (v === 'auto' || v === 'local') ? v : parseInt(v, 10);
       saveSettings();
       applyWeather();
       syncControls();

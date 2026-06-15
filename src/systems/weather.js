@@ -73,6 +73,7 @@ export const weatherState = {
   transitionDuration: 0,        // Total crossfade duration (seconds)
   seed: Date.now(),             // RNG seed for reproducibility
   devOverride: -1,              // -1 = auto, 0-3 = forced state (dev mode)
+  synced: false,               // true = driven by real local weather (weather-sync.js)
   initialized: false,
 };
 
@@ -160,6 +161,7 @@ export function weatherInit(saved) {
   _rng = mulberry32(weatherState.seed);
   weatherState.transitioning = false;
   weatherState.transitionProgress = 0;
+  weatherState.synced = false;
   weatherState.initialized = true;
 }
 
@@ -193,6 +195,10 @@ export function weatherUpdate(dt) {
     }
     return; // don't tick timer during crossfade
   }
+
+  // Synced to real local weather → an external driver owns the state; the
+  // crossfade above still animates, but the Markov chain never auto-rolls.
+  if (weatherState.synced) return;
 
   // --- Tick down current state duration ---
   weatherState.timeRemaining -= dt;
@@ -270,6 +276,7 @@ export function weatherCatchUp(elapsedSeconds) {
 // Dev helpers
 // ============================================================
 export function weatherForceState(stateId) {
+  weatherState.synced = false;   // manual pick / Markov resume exits sync mode
   if (stateId < 0) {
     // Resume auto
     weatherState.devOverride = -1;
@@ -281,6 +288,20 @@ export function weatherForceState(stateId) {
   weatherState.current = stateId;
   weatherState.transitioning = false;
   weatherState.transitionProgress = 0;
+}
+
+// ============================================================
+// Real-weather sync — external driver (see systems/weather-sync.js)
+// ============================================================
+// Crossfade to a state chosen from the user's REAL local weather, and suspend
+// the Markov auto-roll so the island mirrors reality. Reuses the normal
+// transition visuals. Safe to call repeatedly — a no-op once already on target.
+export function weatherSyncTo(stateId) {
+  weatherState.synced = true;
+  weatherState.devOverride = -1;          // sync is not a dev freeze
+  if (weatherState.transitioning) return; // let an in-flight crossfade finish
+  if (stateId === weatherState.current) return;
+  _startTransition(weatherState.current, stateId);
 }
 
 // ============================================================

@@ -59,6 +59,7 @@ import {
   weatherInit, weatherUpdate, weatherState, weatherSetCallbacks,
   weatherForceState, WEATHER_NAMES
 } from './systems/weather.js';
+import { weatherSyncStart, weatherSyncStop } from './systems/weather-sync.js';
 
 // ============================================================
 // Wire cross-module callbacks (avoids circular dependencies)
@@ -387,6 +388,8 @@ setCloudState(weatherState.current);
 // Weather control used by the Settings menu: 'auto' resumes the Markov chain,
 // a state id (0-3) forces it and applies the look immediately.
 callbacks.setWeather = (val) => {
+  if (val === 'local') { weatherSyncStart(); return; }   // mirror real local weather
+  weatherSyncStop();                                     // any other choice ends sync
   if (val === 'auto') { weatherForceState(-1); return; }
   const id = parseInt(val, 10);
   if (id >= 0 && id <= 3) { weatherForceState(id); setCloudState(id); }
@@ -406,6 +409,7 @@ initSettings();
 if (isDev()) {
 document.getElementById('weatherSelect').addEventListener('change', (e) => {
   const val = e.target.value;
+  weatherSyncStop();   // dev override takes over from any real-weather sync
   if (val === 'auto') {
     // Resume Markov chain auto-rotation
     weatherForceState(-1);

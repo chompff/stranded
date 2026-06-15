@@ -18,16 +18,17 @@ import * as THREE from 'three';
 import { scene, terrainRefs, OCEAN_FLOOR_Y } from './state.js';
 import { dnc_state } from './sky-water.js';
 import { getPlayerWorldPosition, isPlayerActive, isPlayerUnderwater } from './player.js';
+import { isCursorFresh, cursorWater } from './sealife.js';   // shared cursor-on-water point
 
 // ── Tunables ────────────────────────────────────────────────
 const NUM_FISH       = 45;
 // Reef anchor — the volume the school shoals around. Sits over the
 // shore-parallel rock reef in front of the home beach (camera looks +X from
 // ~Z -150). Easy to reposition by eye: nudge REEF_CX / REEF_CZ.
-const REEF_CX        = 54;            // anchor centre X (over the reef ridge)
-const REEF_CZ        = -150;          // anchor centre Z (in front of home beach)
+const REEF_CX        = 36;            // anchor centre X — pulled toward the camera into the near-foreground shallows (lower X = nearer; was 54 over the offshore reef)
+const REEF_CZ        = -150;          // anchor centre Z (in front of home beach — screen centre)
 const REEF_CLEARANCE = 4.6;           // anchor band height above the reef floor (rides high in the water column)
-const ANCHOR_RADIUS  = 8.5;           // horizontal radius of the shoaling volume
+const ANCHOR_RADIUS  = 6.5;           // horizontal radius of the shoaling volume — tightened so the school holds the foreground strip instead of drifting out of frame (was 8.5)
 const ANCHOR_BAND    = 1.8;           // vertical half-extent of the shoaling band (tight — stays up in view)
 
 const FISH_SCALE     = 0.40;          // overall size multiplier (~0.24m long — a fraction of a gull)
@@ -51,10 +52,16 @@ const FLEE_W         = 26.0;          // steer-away from the diver (the scatter)
 const SCARE_RADIUS   = 9.0;           // diver this close (underwater) → school parts
 const TURN_RATE      = 3.0;           // heading/orientation easing
 
+// Cursor scatter — the pointer-on-water (the wallpaper's one input) bolts the
+// school, the same reflex as the diver scare but from the surface point above.
+const CURSOR_SCARE_R = 7.0;           // pointer this close (horizontally above) → bolt
+const CURSOR_FLEE_W  = 24.0;          // snappy scatter (mirrors the diver's FLEE_W)
+
 // Precomputed squares
 const PERCEPTION2 = PERCEPTION * PERCEPTION;
 const SEP2        = SEP_DIST * SEP_DIST;
 const SCARE2      = SCARE_RADIUS * SCARE_RADIUS;
+const CURSOR_SCARE2 = CURSOR_SCARE_R * CURSOR_SCARE_R;
 
 const TAIL_HINGE_Z = -0.27;           // local Z the caudal fin pivots about
 
@@ -80,6 +87,7 @@ const _coh = new THREE.Vector3();
 const _ali = new THREE.Vector3();
 const _sep = new THREE.Vector3();
 const _player = new THREE.Vector3();
+const _cursor = new THREE.Vector3();
 const _scaleV = new THREE.Vector3(FISH_SCALE, FISH_SCALE, FISH_SCALE);
 const _mBody = new THREE.Matrix4();
 const _mTail = new THREE.Matrix4();
@@ -270,7 +278,7 @@ function faceTravel(f, dt) {
   }
 }
 
-function updateFish_(t, dt, playerActive) {
+function updateFish_(t, dt, playerActive, cursorActive) {
   const n = fish.length;
 
   for (let i = 0; i < n; i++) {
@@ -346,6 +354,20 @@ function updateFish_(t, dt, playerActive) {
         _acc.x += dpx * inv * strength;
         _acc.y += dpy * inv * strength;
         _acc.z += dpz * inv * strength;
+      }
+    }
+
+    // ── Cursor avoidance — bolt from the pointer-on-water (the wallpaper input) ──
+    if (cursorActive) {
+      const cdx = pi.x - _cursor.x, cdy = pi.y - _cursor.y, cdz = pi.z - _cursor.z;
+      const cd2 = cdx * cdx + cdy * cdy + cdz * cdz;
+      if (cd2 < CURSOR_SCARE2 && cd2 > 1e-4) {
+        const cd = Math.sqrt(cd2);
+        const strength = CURSOR_FLEE_W * (1 - cd / CURSOR_SCARE_R); // hardest right under the pointer
+        const inv = 1 / cd;
+        _acc.x += cdx * inv * strength;
+        _acc.y += cdy * inv * strength;
+        _acc.z += cdz * inv * strength;
       }
     }
 
@@ -429,6 +451,10 @@ export function updateFish(t, dt) {
   const playerActive = isPlayerActive() && isPlayerUnderwater();
   if (playerActive) _player.copy(getPlayerWorldPosition());
 
+  // Cursor-on-water (shared with the turtle) — the school bolts away from it.
+  const cursorActive = isCursorFresh();
+  if (cursorActive) _cursor.copy(cursorWater());
+
   const cdt = Math.min(0.05, dt);
-  updateFish_(t, cdt, playerActive);
+  updateFish_(t, cdt, playerActive, cursorActive);
 }

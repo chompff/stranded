@@ -126,6 +126,11 @@ function refreshCursorPoint(nowMs) {
   _cursorPt.copy(camera.position).addScaledVector(_v1, t);
 }
 
+// Exposed so the reef school can read the SAME cursor-on-water point instead of
+// re-projecting it — one unproject per frame, shared across creatures.
+export function isCursorFresh() { return _cursorFresh; }
+export function cursorWater() { return _cursorPt; }
+
 // Generic "steer away from a point" helper. Adds to _acc.
 function fleeFrom(px, py, pz, pos, radius, weight) {
   const dx = pos.x - px, dy = pos.y - py, dz = pos.z - pz;
@@ -156,6 +161,11 @@ const TURTLE_BREATH_HOLD = [2.6, 4.0]; // s at the surface
 const TURTLE_PASS_GAP = [200, 420];    // s between foreground close passes
 const TURTLE_PASS_X = 20;              // the shallows lane the pass swims along (clear of the waterline strip)
 const TURTLE_SURFACE_Y = -0.12;        // shell crests the waterline here
+// Cursor curiosity — the turtle cautiously investigates a nearby pointer.
+const TURTLE_CURIOSITY_R = 13;         // only notices the cursor within this (horizontal); never chases beyond it
+const TURTLE_STANDOFF    = 2.8;        // keeps this gap — curious but wary, won't crowd the pointer
+const TURTLE_CURIOSITY_W = 0.95;       // gentle pull (cautious, not eager)
+const TURTLE_LEASH       = 16;         // strayed this far from home → loses interest, drifts back (no lagoon-wide chase)
 
 const turtles = [];
 const turtleGroup = new THREE.Group();
@@ -347,15 +357,35 @@ function updateTurtles(t, dt, playerActive) {
 
     // ── Steering: seek waypoint + gentle reactions ──
     _acc.set(0, 0, 0);
+    // Cursor curiosity (cruise only): cautiously drift toward a nearby pointer
+    // and hover at a shy standoff. Bounded by CURIOSITY_R and a home leash, so
+    // it investigates its patch but never chases the pointer across the lagoon.
+    let curious = false;
+    if (_cursorFresh && tu.mode === 'cruise') {
+      const cdx = _cursorPt.x - tu.pos.x, cdz = _cursorPt.z - tu.pos.z;
+      const cd = Math.hypot(cdx, cdz);
+      const homeD = Math.hypot(tu.pos.x - TURTLE_HOME.cx, tu.pos.z - TURTLE_HOME.cz);
+      if (cd < TURTLE_CURIOSITY_R && cd > 1e-3 && homeD < TURTLE_LEASH) {
+        const inv = 1 / cd;
+        if (cd > TURTLE_STANDOFF) {            // approach (horizontal only — stays in its depth band)
+          _acc.x += cdx * inv * TURTLE_CURIOSITY_W;
+          _acc.z += cdz * inv * TURTLE_CURIOSITY_W;
+        } else {                               // too close — a wary little backpedal
+          _acc.x -= cdx * inv * TURTLE_CURIOSITY_W * 0.7;
+          _acc.z -= cdz * inv * TURTLE_CURIOSITY_W * 0.7;
+        }
+        curious = true;
+      }
+    }
     _v1.subVectors(tu.wp, tu.pos);
     const dist = _v1.length();
     if (dist > 1e-3) {
       _v1.multiplyScalar(1 / dist);
       const urge = tu.mode === 'rise' || tu.mode === 'dive' ? 1.6 : 1.0;
-      _acc.addScaledVector(_v1, TURTLE_TURN * urge);
+      // Ease off the wander while investigating so the curiosity reads clearly.
+      _acc.addScaledVector(_v1, TURTLE_TURN * urge * (curious ? 0.35 : 1));
     }
     if (playerActive) fleeFrom(_player.x, _player.y, _player.z, tu.pos, 7.0, 2.5);
-    if (_cursorFresh && tu.mode !== 'breathe') fleeFrom(_cursorPt.x, _cursorPt.y, _cursorPt.z, tu.pos, 6.0, 1.2);
 
     tu.vel.addScaledVector(_acc, dt);
     const maxSp = tu.mode === 'pass' ? TURTLE_SPEED * 0.8 : TURTLE_SPEED;

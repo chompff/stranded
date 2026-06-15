@@ -54,8 +54,8 @@ const TURN_RATE      = 3.0;           // heading/orientation easing
 
 // Cursor scatter — the pointer-on-water (the wallpaper's one input) bolts the
 // school, the same reflex as the diver scare but from the surface point above.
-const CURSOR_SCARE_R = 7.0;           // pointer this close (horizontally above) → bolt
-const CURSOR_FLEE_W  = 24.0;          // snappy scatter (mirrors the diver's FLEE_W)
+const CURSOR_SCARE_R = 12.0;          // generous radius — covers the surface-projection offset so hovering the school reliably bolts it
+const CURSOR_FLEE_W  = 28.0;          // snappy scatter (mirrors the diver's FLEE_W)
 
 // Precomputed squares
 const PERCEPTION2 = PERCEPTION * PERCEPTION;
@@ -358,16 +358,19 @@ function updateFish_(t, dt, playerActive, cursorActive) {
     }
 
     // ── Cursor avoidance — bolt from the pointer-on-water (the wallpaper input) ──
+    // Trigger on HORIZONTAL distance only: the pointer rides the surface above
+    // the fish, so its water-projected point sits short of them in depth —
+    // comparing x/z makes "pointer over the school" reliably scatter them.
     if (cursorActive) {
-      const cdx = pi.x - _cursor.x, cdy = pi.y - _cursor.y, cdz = pi.z - _cursor.z;
-      const cd2 = cdx * cdx + cdy * cdy + cdz * cdz;
-      if (cd2 < CURSOR_SCARE2 && cd2 > 1e-4) {
-        const cd = Math.sqrt(cd2);
-        const strength = CURSOR_FLEE_W * (1 - cd / CURSOR_SCARE_R); // hardest right under the pointer
-        const inv = 1 / cd;
+      const cdx = pi.x - _cursor.x, cdz = pi.z - _cursor.z;
+      const hd2 = cdx * cdx + cdz * cdz;
+      if (hd2 < CURSOR_SCARE2 && hd2 > 1e-4) {
+        const hd = Math.sqrt(hd2);
+        const strength = CURSOR_FLEE_W * (1 - hd / CURSOR_SCARE_R); // hardest right under the pointer
+        const inv = 1 / hd;
         _acc.x += cdx * inv * strength;
-        _acc.y += cdy * inv * strength;
         _acc.z += cdz * inv * strength;
+        _acc.y -= strength * 0.35;            // duck down, away from the looming pointer
       }
     }
 

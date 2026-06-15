@@ -152,7 +152,7 @@ function fleeFrom(px, py, pz, pos, radius, weight) {
 // SEA TURTLES
 // ============================================================
 const TURTLE_COUNT = 1;
-const TURTLE_HOME = { cx: 38, cz: -150, rx: 9, rz: 10 };   // mid-lagoon ellipse — kept clear of the shoreline
+const TURTLE_HOME = { cx: 38, cz: -168, rx: 9, rz: 10 };   // mid-lagoon ellipse, shifted to screen-right (more negative Z) so it clears the reef school at z=-150
 const TURTLE_DEPTH_MIN = -2.0, TURTLE_DEPTH_MAX = -0.9;     // cruise band — rides high, reads from the surface
 const TURTLE_SPEED = 0.85;
 const TURTLE_TURN = 1.4;

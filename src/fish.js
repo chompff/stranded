@@ -18,7 +18,7 @@ import * as THREE from 'three';
 import { scene, camera, terrainRefs, OCEAN_FLOOR_Y } from './state.js';
 import { dnc_state } from './sky-water.js';
 import { getPlayerWorldPosition, isPlayerActive, isPlayerUnderwater } from './player.js';
-import { isCursorFresh, cursorRayDir } from './sealife.js';   // shared cursor ray
+import { isCursorPresent, cursorRayDir } from './sealife.js';   // shared cursor ray (always-on)
 
 // ── Tunables ────────────────────────────────────────────────
 const NUM_FISH       = 45;
@@ -56,7 +56,7 @@ const TURN_RATE      = 3.0;           // heading/orientation easing
 // away from the cursor, then it eases back to lazy shoaling. Detection uses the
 // camera→cursor RAY (does it pass near the school?), which is immune to the
 // grazing-angle error of projecting the cursor onto the water plane.
-const SCHOOL_SCARE_R = 9.0;           // cursor ray within this of the school centre → bolt (≈ school extent)
+const SCHOOL_SCARE_R = 7.0;           // cursor ray within this of the NEAREST fish → bolt (can't park on any single fish)
 const BOLT_SPEED     = 6.0;           // dart speed — many× the lazy cruise, so it reads as an instant bolt
 const BOLT_DURATION  = 0.85;          // seconds the dart holds before easing back
 
@@ -464,32 +464,42 @@ export function updateFish(t, dt) {
 
   const cdt = Math.min(0.05, dt);
 
-  // ── School centroid (the school reacts AS ONE) ──
+  // ── School centroid + nearest fish to the cursor ray (one pass) ──
+  const n = fish.length;
+  const dir = isCursorPresent() ? cursorRayDir() : null;
   _centroid.set(0, 0, 0);
-  for (let i = 0; i < fish.length; i++) _centroid.add(fish[i].pos);
-  _centroid.divideScalar(fish.length);
-
-  // ── Cursor spook → instant, unified bolt ──
-  // Test the camera→cursor RAY against the school centre (perpendicular
-  // distance) — "is the pointer aimed at the school?" — so it doesn't depend on
-  // the water-plane projection that left earlier attempts unresponsive.
-  if (isCursorFresh()) {
-    const dir = cursorRayDir();
-    _rayTmp.subVectors(_centroid, camera.position);
-    const along = _rayTmp.dot(dir);                       // distance to the closest approach
-    if (along > 0) {
-      _closest.copy(camera.position).addScaledVector(dir, along);
-      if (_closest.distanceToSquared(_centroid) < SCHOOL_SCARE2) {
-        const wasBolting = _boltTimer > 0;
-        // Flee horizontally away from where the pointer is aimed.
-        _boltVel.set(_centroid.x - _closest.x, 0, _centroid.z - _closest.z);
-        if (_boltVel.lengthSq() < 0.05) _boltVel.set(_centroid.x - camera.position.x, 0, _centroid.z - camera.position.z);
-        _boltVel.normalize().multiplyScalar(BOLT_SPEED);
-        _boltTimer = BOLT_DURATION;
-        // Instant: on first contact, snap every fish onto the shared dart.
-        if (!wasBolting) for (let i = 0; i < fish.length; i++) fish[i].vel.set(_boltVel.x, 0, _boltVel.z);
+  let minPerp2 = Infinity;
+  for (let i = 0; i < n; i++) {
+    const p = fish[i].pos;
+    _centroid.add(p);
+    if (dir) {
+      _rayTmp.subVectors(p, camera.position);
+      const along = _rayTmp.dot(dir);                    // closest-approach distance along the ray
+      if (along > 0) {
+        _closest.copy(camera.position).addScaledVector(dir, along);
+        const perp2 = _closest.distanceToSquared(p);
+        if (perp2 < minPerp2) minPerp2 = perp2;
       }
     }
+  }
+  _centroid.divideScalar(n);
+
+  // ── Cursor spook → instant, unified bolt ──
+  // Detect on the NEAREST fish to the camera→cursor ray (so no single fish can
+  // be parked on), and ALWAYS-LIVE (not gated on recent movement) so a still
+  // cursor keeps repelling — it's impossible to keep a fish under the pointer.
+  // The whole school then darts AS ONE, away from where the pointer is aimed.
+  if (dir && minPerp2 < SCHOOL_SCARE2) {
+    _rayTmp.subVectors(_centroid, camera.position);
+    const alongC = Math.max(0, _rayTmp.dot(dir));
+    _closest.copy(camera.position).addScaledVector(dir, alongC);
+    _boltVel.set(_centroid.x - _closest.x, 0, _centroid.z - _closest.z);
+    if (_boltVel.lengthSq() < 0.05) _boltVel.set(_centroid.x - camera.position.x, 0, _centroid.z - camera.position.z);
+    _boltVel.normalize().multiplyScalar(BOLT_SPEED);
+    const wasBolting = _boltTimer > 0;
+    _boltTimer = BOLT_DURATION;
+    // Instant: on first contact, snap every fish onto the shared dart.
+    if (!wasBolting) for (let i = 0; i < n; i++) fish[i].vel.set(_boltVel.x, 0, _boltVel.z);
   }
   if (_boltTimer > 0) _boltTimer -= cdt;
 

@@ -109,28 +109,36 @@ let _curNdcX = 0, _curNdcY = 0, _curMovedAt = -1e9, _curDirty = false;
 const _cursorPt = new THREE.Vector3();   // where the cursor ray meets y=0
 const _cursorDir = new THREE.Vector3();  // normalized camera→cursor ray direction
 let _cursorFresh = false;
+let _cursorEver = false;                  // has the pointer ever been seen (→ a valid ray exists)
 window.addEventListener('pointermove', (e) => {
   if (buildState.active) return;
   _curNdcX = (e.clientX / window.innerWidth) * 2 - 1;
   _curNdcY = -(e.clientY / window.innerHeight) * 2 + 1;
   _curDirty = true;
+  _cursorEver = true;
 }, { passive: true });
 
 function refreshCursorPoint(nowMs) {
   if (_curDirty) { _curMovedAt = nowMs; _curDirty = false; }
-  _cursorFresh = (nowMs - _curMovedAt) < 2500;
-  if (!_cursorFresh) return;
+  const recent = (nowMs - _curMovedAt) < 2500;
+  if (!_cursorEver) { _cursorFresh = false; return; }
+  // Recompute the ray EVERY frame from the latest cursor position — even while
+  // the pointer is idle — so the fish can be repelled by a STATIONARY cursor
+  // (it must be impossible to park the pointer on a fish). The turtle's
+  // curiosity still uses the 2.5s "fresh" window so it settles when idle.
   _v1.set(_curNdcX, _curNdcY, 0.5).unproject(camera);
   _v1.sub(camera.position).normalize();
-  _cursorDir.copy(_v1);                                 // ray direction (for ray-proximity tests)
-  if (_v1.y > -1e-4) { _cursorFresh = false; return; }  // looking up — no water hit
+  _cursorDir.copy(_v1);                                 // ray direction (always current — for the fish)
+  if (_v1.y > -1e-4) { _cursorFresh = false; return; }  // looking up — no water point; turtle stands down
+  _cursorFresh = recent;
   const t = -camera.position.y / _v1.y;
   _cursorPt.copy(camera.position).addScaledVector(_v1, t);
 }
 
 // Exposed so the reef school can read the SAME cursor-on-water point instead of
 // re-projecting it — one unproject per frame, shared across creatures.
-export function isCursorFresh() { return _cursorFresh; }
+export function isCursorFresh() { return _cursorFresh; }     // 2.5s window — turtle curiosity settles when idle
+export function isCursorPresent() { return _cursorEver; }    // always-on once seen — fish repel never settles
 export function cursorWater() { return _cursorPt; }
 export function cursorRayDir() { return _cursorDir; }   // normalized camera→cursor ray
 

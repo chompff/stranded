@@ -24,7 +24,7 @@ function defaults() {
   const preset = 'high'; // full quality by default; the scan or the gear can step it down
   return {
     music: false,        // OFF by default
-    ambient: false,      // OFF by default
+    ambient: false,      // OFF by default (also gates the campfire crackle)
     showTime: false,     // clock hidden by default (Interface → Show time)
     hideGear: false,     // settings wheel visible by default (hover-reveal when hidden)
     showPlayer: false,   // character hidden by default (Interface → Show character)

@@ -148,6 +148,9 @@ function applyAudioState() {
       _ambAbove.volume = 0; _ambBelow.volume = 0;
     }
   }
+  // Campfire crackle is folded into Ambient (same toggle). Owned by campfire.js;
+  // its master volume tracks the fire's ignite level, so it stays silent until evening.
+  if (window._setCampfireAudio) window._setCampfireAudio(!!S.ambient);
 }
 
 // ============================================================
@@ -233,7 +236,6 @@ function buildUI() {
         <div class="sip-h">Interface</div>
         <label class="sip-row"><span>Show time</span><input type="checkbox" class="sip-sw" data-u="showTime"></label>
         <label class="sip-row"><span>Hide settings wheel</span><input type="checkbox" class="sip-sw" data-u="hideGear"></label>
-        <label class="sip-row"><span>Show character</span><input type="checkbox" class="sip-sw" data-u="showPlayer"></label>
       </div>
       <div class="sip-sec">
         <div class="sip-h">Graphics</div>
@@ -425,7 +427,6 @@ function syncControls() {
   root.querySelector('[data-a="ambient"]').checked = !!S.ambient;
   root.querySelector('[data-u="showTime"]').checked = S.showTime !== false;
   root.querySelector('[data-u="hideGear"]').checked = !!S.hideGear;
-  root.querySelector('[data-u="showPlayer"]').checked = S.showPlayer !== false;
   const g = S.gfx;
   root.querySelector('[data-g="frameRate"]').textContent = g.frameRate + ' fps';
   root.querySelector('[data-g="resolution"]').textContent = g.resolution === 'half' ? 'Half' : 'Full';

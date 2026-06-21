@@ -38,6 +38,7 @@ import {
 } from './ecosystem.js';
 
 import { updateRockLOD, initRocks } from './rocks.js'; // Procedural rock system (Layer 2)
+import { initCampfire, updateCampfire } from './campfire.js'; // Evening campfire on the Home Beach
 import { initSlabScatter } from './slab-scatter.js'; // Stone slab placement (Layer 3)
 import { initBirds, updateBirds } from './birds.js'; // Circling/landing seagulls (daytime)
 import { initFish, updateFish } from './fish.js'; // Schooling reef fish over the reef (daytime)
@@ -744,6 +745,7 @@ function animate() {
   updateBirds(t, ecoDt);
   updateFish(t, ecoDt);
   updateSealife(t, ecoDt);
+  updateCampfire(t, ecoDt);
   window._lastEcoT = t;
 
   // Player update (movement, surface following, rotation)
@@ -1556,6 +1558,9 @@ setPlayerVisible(getSettings().showPlayer !== false);
 
 // Init procedural rocks (must run after all modules so terrainRefs.seabedMesh exists)
 initRocks();
+
+// Evening campfire — built after terrain/rocks so it can raycast the sand surface
+initCampfire();
 
 // Start the animation loop
 animate();

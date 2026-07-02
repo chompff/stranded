@@ -2846,6 +2846,8 @@ function dnc_sampleSkyPalette(palette, t) {
 
 let dnc_lastSkyUpdate = 0;
 const DNC_SKY_UPDATE_INTERVAL = 0.15; // seconds between sky redraws (perf)
+let _cloudTintStale = true;  // cloud dome vertex tint skipped while hidden — repaint once when it becomes visible
+let _rayNightGated = false;  // god rays hidden by the DNC night gate (see dnc_update)
 
 function dnc_update(elapsedTime) {
   // Delta time
@@ -3200,7 +3202,9 @@ function dnc_update(elapsedTime) {
   //   Sun 0° to 8°:  golden hour (warm horizon colors)
   //   Sun 8° to 18°: transition (warm → blue) — fairly quick
   //   Sun > 18°:     clear blue daytime
-  if (elapsedTime - dnc_lastSkyUpdate > DNC_SKY_UPDATE_INTERVAL) {
+  // Run early when the cloud dome just became visible with a stale vertex tint,
+  // so it never shows hours-old colors (its tint loop below is skipped while hidden).
+  if (elapsedTime - dnc_lastSkyUpdate > DNC_SKY_UPDATE_INTERVAL || (cloudDome.visible && _cloudTintStale)) {
     dnc_lastSkyUpdate = elapsedTime;
     const elev = dnc_state.sunElevDeg;
     // Pick warm palette: dawn (rising) or dusk (setting) based on sun direction
@@ -3308,31 +3312,38 @@ function dnc_update(elapsedTime) {
       sdx = slx / sLen; sdy = sly / sLen; sdz = slz / sLen;
     }
 
-    for (let i = 0; i < cdPos.count; i++) {
-      const elev = cloudVertElevation[i];
-      const palPos = 1.0 - elev;
-      const col = dnc_sampleSkyPalette(skyPal, palPos);
-      let r = (col[0] / 255) * cloudBright;
-      let g = (col[1] / 255) * cloudBright;
-      let b = (col[2] / 255) * cloudBright;
+    // Per-vertex tint only while the dome is actually drawn — skipped tints are
+    // repainted via the _cloudTintStale early-run above when it becomes visible.
+    if (cloudDome.visible) {
+      for (let i = 0; i < cdPos.count; i++) {
+        const elev = cloudVertElevation[i];
+        const palPos = 1.0 - elev;
+        const col = dnc_sampleSkyPalette(skyPal, palPos);
+        let r = (col[0] / 255) * cloudBright;
+        let g = (col[1] / 255) * cloudBright;
+        let b = (col[2] / 255) * cloudBright;
 
-      if (sunDirActive) {
-        const vx = cdPos.getX(i), vy = cdPos.getY(i), vz = cdPos.getZ(i);
-        const vLen = Math.sqrt(vx * vx + vy * vy + vz * vz);
-        const cosTheta = (vx * sdx + vy * sdy + vz * sdz) / vLen;
-        // t: 0 (away from sun) to 1 (toward sun)
-        const t = cosTheta * 0.5 + 0.5;
-        // Warm tint toward sun
-        r += t * tintStrength * tintR;
-        g += t * tintStrength * tintG;
-        b += t * tintStrength * tintB;
+        if (sunDirActive) {
+          const vx = cdPos.getX(i), vy = cdPos.getY(i), vz = cdPos.getZ(i);
+          const vLen = Math.sqrt(vx * vx + vy * vy + vz * vz);
+          const cosTheta = (vx * sdx + vy * sdy + vz * sdz) / vLen;
+          // t: 0 (away from sun) to 1 (toward sun)
+          const t = cosTheta * 0.5 + 0.5;
+          // Warm tint toward sun
+          r += t * tintStrength * tintR;
+          g += t * tintStrength * tintG;
+          b += t * tintStrength * tintB;
+        }
+
+        cvColors[i * 3]     = Math.min(1, r);
+        cvColors[i * 3 + 1] = Math.min(1, g);
+        cvColors[i * 3 + 2] = Math.min(1, b);
       }
-
-      cvColors[i * 3]     = Math.min(1, r);
-      cvColors[i * 3 + 1] = Math.min(1, g);
-      cvColors[i * 3 + 2] = Math.min(1, b);
+      cloudDomeGeo.attributes.color.needsUpdate = true;
+      _cloudTintStale = false;
+    } else {
+      _cloudTintStale = true;
     }
-    cloudDomeGeo.attributes.color.needsUpdate = true;
   }
 
   // === LIGHTING ===
@@ -3450,6 +3461,18 @@ function dnc_update(elapsedTime) {
   // God rays: dimmer at night, brighter at noon
   const rayTimeMul = (phase === 3) ? 0.05 : (phase === 0 || phase === 2) ? 0.5 : 1.0;
   godRayMat.uniforms.uDncMul.value = rayTimeMul;
+  // Night gate: at 5% strength the peak ray alpha is < 1/255 — invisible — so skip the
+  // draw call entirely. Weather (main.js) also writes godRayMesh.visible, but only
+  // during transitions (those ticks run after us each frame and win; once settled we
+  // re-hide every frame). On leaving the gate, restore the weather intent:
+  // fog ⇔ mist/rain ⇔ no god rays (WEATHER_TARGETS in main.js).
+  if (rayTimeMul <= 0.06) {
+    godRayMesh.visible = false;
+    _rayNightGated = true;
+  } else if (_rayNightGated) {
+    _rayNightGated = false;
+    godRayMesh.visible = !scene.fog;
+  }
 
   // Caustics: dim at night (always active, including build mode)
   // Caustic intensity: full during day, dim at night (moonlit), smooth fade during dusk & dawn
@@ -3587,6 +3610,9 @@ function dnc_update(elapsedTime) {
   // Mist dome color
   const mistTints = [0xe0c8b0, 0xdde4ea, 0xd0a888, 0x202840];
   mistMat.color.setHex(dnc_lerpHex(mistTints[phase], mistTints[nextPhase], crossBlend));
+  // Skip the full-screen dome draw while fully transparent — opacity is written by the
+  // weather system (main.js setCloudState/_lerpWeatherVisuals); we just mirror it here.
+  mistDome.visible = mistMat.opacity > 0.01;
 
   // Update UI labels + slider position
   // During time lapse, throttle DOM updates to ~10/sec to reduce layout/paint overhead

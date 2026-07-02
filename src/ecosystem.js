@@ -4,7 +4,8 @@
 // Architecture:
 //   1. Flora config is defined inline (coconut palm model, scale, sway, placement)
 //   2. GLTFLoader loads the model once from assets/models/, caches the result
-//   3. Placement clones the cached scene graph per instance
+//   3. Placed palms share an InstancedMesh pool (one draw call per GLB
+//      sub-mesh); corals & placeholders still clone the cached scene graph
 //   4. Grow-in animation, wind sway driven from config
 // ============================================================
 
@@ -174,10 +175,10 @@ export function instantiateModel(specId) {
   if (modelCache.has(specId)) {
     const cached = modelCache.get(specId);
     const clone = cached.scene.clone(true);
-    // Deep-clone materials so tinting per instance is possible
+    // Share material from the cached original — nothing tints placed palms,
+    // and per-clone materials would break GPU batching
     clone.traverse(child => {
       if (child.isMesh) {
-        child.material = child.material.clone();
         child.castShadow = true;
         // Flora should NOT receiveShadow — complex geometry causes shadow acne / self-darkening
         child.receiveShadow = (spec.type !== 'flora');
@@ -195,6 +196,110 @@ function applyModelVariation(group, gx, gz) {
   const tiltSeed2 = hashNoise(gx * 17.1, gz * 53.9, 7.7);
   group.rotation.x = (tiltSeed - 0.5) * 0.05; // ±1.4°
   group.rotation.z = (tiltSeed2 - 0.5) * 0.05;
+}
+
+// ─── Instanced palms ─────────────────────────────────────────
+// The placed palms (118 at start) share ONE InstancedMesh per GLB sub-mesh —
+// one geometry + one material for the whole grove, so the colour and shadow
+// passes cost a couple of draw calls instead of ~118 each. Every palm keeps a
+// plain Object3D "proxy" that the existing grow/sway/shake/death code poses
+// exactly as before; each frame the proxy transforms are written into the
+// instance matrices (setMatrixAt, zero per-frame allocations — like fish.js).
+const PALM_POOL_SIZE = 160;      // 118 starter palms + build-tool headroom
+let _palmInstMeshes = null;      // [{ inst, localMat }] — one per GLB sub-mesh
+const _palmProxies = [];         // slot → proxy Object3D (null = freed slot)
+const _palmFreeSlots = [];       // recycled slot indices
+let _palmLocalTopY = 1;          // model-local crown top (coconut drop height)
+const _palmMat = new THREE.Matrix4();
+const _palmSubMat = new THREE.Matrix4();
+const _palmZeroMat = new THREE.Matrix4().makeScale(0, 0, 0); // hidden instance
+
+// Build the shared InstancedMeshes from the cached GLB (lazy — first palm).
+// Returns null when unavailable (model not loaded, or skinned) → caller falls
+// back to the clone/placeholder path.
+function _buildPalmInstances() {
+  if (_palmInstMeshes) return _palmInstMeshes;
+  const cached = modelCache.get(FLORA_ID);
+  if (!cached) return null;
+  const src = cached.scene;
+  src.updateMatrixWorld(true);
+  const meshes = [];
+  src.traverse(child => {
+    if (child.isMesh && !child.isSkinnedMesh) meshes.push(child);
+  });
+  if (meshes.length === 0) return null;
+  _palmInstMeshes = meshes.map(mesh => {
+    const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material, PALM_POOL_SIZE);
+    inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // rewritten every frame (sway)
+    inst.count = 0;
+    inst.castShadow = true;
+    // Flora should NOT receiveShadow — complex geometry causes shadow acne / self-darkening
+    inst.receiveShadow = false;
+    inst.frustumCulled = false;  // grove spans the island — geometry-origin culling would pop it
+    inst.userData.isPalmInstances = true; // hover raycast resolves instanceId → proxy
+    floraGroup.add(inst);
+    // Sub-mesh transform relative to the GLB root (placement overwrote the
+    // root transform on the old clones, so the root is excluded here too)
+    return { inst, localMat: mesh.matrixWorld.clone() };
+  });
+  const box = new THREE.Box3().setFromObject(src); // once, at pool build
+  _palmLocalTopY = box.max.y;
+  return _palmInstMeshes;
+}
+
+// Grab a free slot and hand back its proxy (or null → clone fallback).
+function _acquirePalmProxy() {
+  if (!_buildPalmInstances()) return null;
+  let slot;
+  if (_palmFreeSlots.length > 0) {
+    slot = _palmFreeSlots.pop();
+  } else if (_palmProxies.length < PALM_POOL_SIZE) {
+    slot = _palmProxies.length;
+    _palmProxies.push(null);
+    for (let m = 0; m < _palmInstMeshes.length; m++) _palmInstMeshes[m].inst.count = _palmProxies.length;
+  } else {
+    return null; // pool exhausted — overflow palms fall back to GLB clones
+  }
+  const proxy = new THREE.Object3D();
+  proxy.userData.palmSlot = slot;
+  _palmProxies[slot] = proxy;
+  // Hidden until the first sync (placement starts palms at scale 0 anyway)
+  for (let m = 0; m < _palmInstMeshes.length; m++) _palmInstMeshes[m].inst.setMatrixAt(slot, _palmZeroMat);
+  return proxy;
+}
+
+// Release a proxy's slot (palm finished its death animation).
+function _releasePalmProxy(proxy) {
+  const slot = proxy.userData.palmSlot;
+  for (let m = 0; m < _palmInstMeshes.length; m++) {
+    _palmInstMeshes[m].inst.setMatrixAt(slot, _palmZeroMat);
+    _palmInstMeshes[m].inst.instanceMatrix.needsUpdate = true;
+  }
+  _palmProxies[slot] = null;
+  _palmFreeSlots.push(slot);
+}
+
+// Per-frame: compose each live proxy's transform into the instance matrices.
+// Runs at the end of ecosystemTick, after grow/sway/shake/death have posed
+// the proxies. No allocations — two reused Matrix4s.
+function _syncPalmInstances() {
+  if (!_palmInstMeshes || _palmProxies.length === 0) return;
+  for (let s = 0; s < _palmProxies.length; s++) {
+    const p = _palmProxies[s];
+    if (!p) continue; // freed slot — matrix already zeroed
+    if (!p.visible) {
+      for (let m = 0; m < _palmInstMeshes.length; m++) _palmInstMeshes[m].inst.setMatrixAt(s, _palmZeroMat);
+      continue;
+    }
+    _palmMat.compose(p.position, p.quaternion, p.scale);
+    for (let m = 0; m < _palmInstMeshes.length; m++) {
+      _palmSubMat.multiplyMatrices(_palmMat, _palmInstMeshes[m].localMat);
+      _palmInstMeshes[m].inst.setMatrixAt(s, _palmSubMat);
+    }
+  }
+  for (let m = 0; m < _palmInstMeshes.length; m++) {
+    _palmInstMeshes[m].inst.instanceMatrix.needsUpdate = true;
+  }
 }
 
 // ─── Flora placement ────────────────────────────────────────
@@ -278,8 +383,9 @@ export function placeFlora(specId, gx, gz) {
     showWarning('Needs sand surface!'); return;
   }
 
-  // Create instance
-  const model = instantiateModel(specId);
+  // Create instance — instanced-pool proxy when the GLB is cached; clone /
+  // placeholder fallback otherwise (model still loading, or pool full)
+  const model = _acquirePalmProxy() || instantiateModel(specId);
   const s = randRange(spec.scale[0], spec.scale[1]);
   model.userData.targetScale = s;
   // Start invisible — reverse-crumble particles will reveal it
@@ -302,7 +408,10 @@ export function placeFlora(specId, gx, gz) {
     }
   }
   // Skip placement if surface is below water — prevents trees in the ocean
-  if (actualY < 0.05) return;
+  if (actualY < 0.05) {
+    if (model.userData.palmSlot !== undefined) _releasePalmProxy(model); // don't leak the pool slot
+    return;
+  }
   model.position.set(worldX, actualY, worldZ);
 
   floraGroup.add(model);
@@ -467,9 +576,15 @@ function _spawnCoconut(group, canopyY, t) {
 const _canopyBox = new THREE.Box3();
 function _canopyYFor(rec) {
   if (rec._canopyY === undefined) {
-    _canopyBox.setFromObject(rec.group);
-    // Drop from inside the crown, not the very tip
-    rec._canopyY = rec.group.position.y + (_canopyBox.max.y - rec.group.position.y) * 0.82;
+    if (rec.group.userData.palmSlot !== undefined) {
+      // Instanced palm — no scene-graph box to measure; the model-local crown
+      // top scaled by the proxy's Y gives the same world height
+      rec._canopyY = rec.group.position.y + (_palmLocalTopY * rec.group.scale.y) * 0.82;
+    } else {
+      _canopyBox.setFromObject(rec.group);
+      // Drop from inside the crown, not the very tip
+      rec._canopyY = rec.group.position.y + (_canopyBox.max.y - rec.group.position.y) * 0.82;
+    }
   }
   return rec._canopyY;
 }
@@ -568,9 +683,14 @@ window.addEventListener('pointermove', (e) => {
   _floraHoverRay.setFromCamera(_floraHoverMouse, camera);
   const hits = _floraHoverRay.intersectObjects(floraGroup.children, true);
   if (hits.length > 0) {
-    // Walk up to find the flora group root
+    // Resolve the hit to the flora root: instanced palms map instanceId →
+    // proxy; clones/placeholders walk up to the floraGroup child
     let obj = hits[0].object;
-    while (obj.parent && obj.parent !== floraGroup) obj = obj.parent;
+    if (obj.userData.isPalmInstances && hits[0].instanceId !== undefined) {
+      obj = _palmProxies[hits[0].instanceId] || obj;
+    } else {
+      while (obj.parent && obj.parent !== floraGroup) obj = obj.parent;
+    }
     // Find which flora this belongs to (palms only — skip corals)
     const t = clock.getElapsedTime();
     placedFlora.forEach((flora, key) => {
@@ -747,11 +867,18 @@ export function ecosystemTick(t, dt) {
     d.group.rotation.y += dt * 6 * progress; // gentle spin accelerates
     if (progress >= 1) {
       floraGroup.remove(d.group);
-      d.group.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+      if (d.group.userData.palmSlot !== undefined) {
+        _releasePalmProxy(d.group); // shared instanced geometry/material stay alive
+      } else {
+        d.group.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+      }
       dyingFlora.splice(i, 1);
     }
   }
 
   // ── Growing flora: reverse-crumble particles converge upward ──
   _tickGrowParticles(t);
+
+  // ── Instanced palms: hand the animated proxy transforms to the GPU ──
+  _syncPalmInstances();
 }

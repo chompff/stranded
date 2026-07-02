@@ -158,8 +158,11 @@ function applyAudioState() {
 // ============================================================
 function applyGraphicsLive() {
   const g = S.gfx;
-  // Frame-rate cap (read by main.js animate loop)
-  gfxRuntime.frameInterval = g.frameRate >= 60 ? 0 : 1 / g.frameRate;
+  // Frame-rate cap (read by main.js animate loop). Never 0 (= uncapped, which
+  // renders every rAF tick); wallpaper mode never exceeds 30 fps. Mirrors
+  // frameInterval() in settings-store.js, computed from the g block being applied.
+  const eff = WALLPAPER ? Math.min(g.frameRate, 30) : g.frameRate;
+  gfxRuntime.frameInterval = 1 / eff;
   // Resolution / pixel ratio
   renderer.setPixelRatio(g.resolution === 'half' ? 1 : Math.min(window.devicePixelRatio || 1, 2));
   resize();

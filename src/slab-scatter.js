@@ -8,7 +8,9 @@
 //         + scattered patch reefs in deeper water
 //         + cove clusters in island shoreline indentations
 //
-// Performance: InstancedMesh, zero per-frame cost — all at init time.
+// Performance: InstancedMesh split into spatial chunks with tight
+//              bounding spheres so off-screen chunks frustum-cull;
+//              zero per-frame cost — all at init time.
 // ============================================================
 
 import * as THREE from 'three';
@@ -290,10 +292,36 @@ function getTongueWarp(wx, wz) {
 // ── Reusable objects (zero per-frame allocations) ──
 const _dummy = new THREE.Object3D();
 const _color = new THREE.Color();
+const _chunkBox = new THREE.Box3();
+const _boundsV = new THREE.Vector3();
 const slabMeshes = [];
 // Expose for underwater raycasts (e.g. player dive floor in player.js). The
 // array reference is stable — instances are pushed during initSlabScatter().
 terrainRefs.slabMeshes = slabMeshes;
+
+// ── Frustum-cull chunking ──────────────────────────────────────
+// three r128 InstancedMesh defaults to frustumCulled = false and culls by
+// geometry.boundingSphere only, so one InstancedMesh spanning the whole scan
+// area gets vertex-processed every frame even when far off-screen. Each slab
+// variant is therefore split into CULL_CHUNK-sized spatial chunks. A chunk's
+// wrapper geometry shares the source attribute buffers (no VRAM copy) but
+// owns a tight world-space bounding sphere (chunk meshes sit at the origin,
+// matrixWorld = identity), so the renderer skips off-screen chunks.
+const CULL_CHUNK = 100; // world units per chunk cell
+
+// Raycast for chunked slab meshes: reject whole chunks via the world-space
+// chunk sphere, then delegate to the stock InstancedMesh raycast with the
+// source geometry swapped in — the per-instance broad phase needs tight
+// geometry-space bounds (the wrapper's sphere is world-space and would be
+// wrong under per-instance transforms).
+const _imRaycast = THREE.InstancedMesh.prototype.raycast;
+function chunkedSlabRaycast(raycaster, intersects) {
+  const chunkGeo = this.geometry;
+  if (raycaster.ray.intersectsSphere(chunkGeo.boundingSphere) === false) return;
+  this.geometry = chunkGeo.userData.srcGeo;
+  _imRaycast.call(this, raycaster, intersects);
+  this.geometry = chunkGeo;
+}
 
 // ════════════════════════════════════════════════════════════════
 // PUBLIC INIT
@@ -578,32 +606,69 @@ export function initSlabScatter() {
       const group = placements[v];
       if (group.length === 0) continue;
 
-      const im = new THREE.InstancedMesh(geos[v], slabMat, group.length);
-      im.castShadow = false;
-      im.receiveShadow = false;
+      const srcGeo = geos[v];
+      if (srcGeo.boundingSphere === null) srcGeo.computeBoundingSphere();
+      const geoSphere = srcGeo.boundingSphere;
 
-      for (let i = 0; i < group.length; i++) {
-        const p = group[i];
-        const s = worldScale * p.scaleMul;
-        const hs = p.heightScale !== undefined ? p.heightScale : heightScale;
-        const sd = p.sinkDepth !== undefined ? p.sinkDepth : sinkDepth;
-        _dummy.position.set(p.px, p.seabedY - sd, p.pz);
-        _dummy.rotation.set(0, p.rotY, 0);
-        _dummy.scale.set(s, s * hs, s);
-        _dummy.updateMatrix();
-        im.setMatrixAt(i, _dummy.matrix);
-
-        // Slab tinting — depth-based attenuation
-        const tint = depthTint(p.seabedY);
-        _color.setRGB(tint.r * 0.75, tint.g * 0.75, tint.b * 0.75);
-        im.setColorAt(i, _color);
+      // Partition this variant's placements into spatial chunks so each
+      // InstancedMesh gets a tight bounding sphere for frustum culling.
+      const chunks = new Map();
+      for (const p of group) {
+        const key = Math.floor(p.px / CULL_CHUNK) + ',' + Math.floor(p.pz / CULL_CHUNK);
+        const list = chunks.get(key);
+        if (list) list.push(p);
+        else chunks.set(key, [p]);
       }
 
-      im.instanceMatrix.needsUpdate = true;
-      if (im.instanceColor) im.instanceColor.needsUpdate = true;
-      scene.add(im);
-      slabMeshes.push(im);
-      slabDrawCalls++;
+      for (const chunk of chunks.values()) {
+        // Wrapper geometry: shares the source attribute buffers (single GPU
+        // upload) but owns this chunk's bounding sphere for culling.
+        const chunkGeo = new THREE.BufferGeometry();
+        for (const name in srcGeo.attributes) chunkGeo.setAttribute(name, srcGeo.attributes[name]);
+        if (srcGeo.index) chunkGeo.setIndex(srcGeo.index);
+        chunkGeo.userData.srcGeo = srcGeo;
+
+        const im = new THREE.InstancedMesh(chunkGeo, slabMat, chunk.length);
+        im.castShadow = false;
+        im.receiveShadow = false;
+
+        _chunkBox.makeEmpty();
+
+        for (let i = 0; i < chunk.length; i++) {
+          const p = chunk[i];
+          const s = worldScale * p.scaleMul;
+          const hs = p.heightScale !== undefined ? p.heightScale : heightScale;
+          const sd = p.sinkDepth !== undefined ? p.sinkDepth : sinkDepth;
+          _dummy.position.set(p.px, p.seabedY - sd, p.pz);
+          _dummy.rotation.set(0, p.rotY, 0);
+          _dummy.scale.set(s, s * hs, s);
+          _dummy.updateMatrix();
+          im.setMatrixAt(i, _dummy.matrix);
+
+          // Grow chunk bounds: geometry sphere under the instance transform
+          // (Y rotation preserves the sphere; max scale component is s).
+          const r = geoSphere.radius * s;
+          _boundsV.copy(geoSphere.center).applyMatrix4(_dummy.matrix);
+          const cx = _boundsV.x, cy = _boundsV.y, cz = _boundsV.z;
+          _chunkBox.expandByPoint(_boundsV.set(cx - r, cy - r, cz - r));
+          _chunkBox.expandByPoint(_boundsV.set(cx + r, cy + r, cz + r));
+
+          // Slab tinting — depth-based attenuation
+          const tint = depthTint(p.seabedY);
+          _color.setRGB(tint.r * 0.75, tint.g * 0.75, tint.b * 0.75);
+          im.setColorAt(i, _color);
+        }
+
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        chunkGeo.boundingSphere = new THREE.Sphere();
+        _chunkBox.getBoundingSphere(chunkGeo.boundingSphere);
+        im.frustumCulled = true; // r128 InstancedMesh default is false
+        im.raycast = chunkedSlabRaycast;
+        scene.add(im);
+        slabMeshes.push(im);
+        slabDrawCalls++;
+      }
     }
   }
 
@@ -638,5 +703,5 @@ export function initSlabScatter() {
   buildSlabInstances(tiers.small, smallPlacements, SMALL_WORLD_SCALE, 0.55, 0.0);
 
   const totalTime = performance.now() - t0;
-  console.log(`[slab-scatter] Complete: ${slabDrawCalls} draw calls, ~${(totalRockTris / 1_000_000).toFixed(2)}M tris (${totalTime.toFixed(0)}ms)`);
+  console.log(`[slab-scatter] Complete: ${slabDrawCalls} frustum-cullable chunk meshes (worst-case draw calls), ~${(totalRockTris / 1_000_000).toFixed(2)}M tris placed (${totalTime.toFixed(0)}ms)`);
 }

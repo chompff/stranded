@@ -9,8 +9,17 @@
 
 const LS_KEY = 'sipSettings';
 
-// Low-power preset is the default when launched as a wallpaper (?wallpaper=1).
-export const WALLPAPER = new URLSearchParams(window.location.search).get('wallpaper') === '1';
+// Low-power preset is the default when launched as a wallpaper. Detection
+// mirrors cta.js (inlined here — this file must stay import-free): `?desktop`
+// (the link we distribute to hosts), the legacy `?wallpaper=1` flag, or a
+// host-injected global (Lively / Wallpaper Engine).
+export const WALLPAPER = (() => {
+  const q = new URLSearchParams(window.location.search);
+  if (q.has('desktop') || q.get('wallpaper') === '1') return true;
+  if (typeof window.livelyPropertyListener !== 'undefined') return true;        // Lively
+  if (typeof window.wallpaperRegisterAudioListener === 'function') return true; // Wallpaper Engine
+  return false;
+})();
 
 // Graphics presets → granular values. "custom" = user-tweaked (not listed).
 export const GFX_PRESETS = {
@@ -21,7 +30,10 @@ export const GFX_PRESETS = {
 export const GFX_KEYS = ['frameRate', 'resolution', 'shadows', 'pauseHidden', 'waterNormals', 'antialias', 'waterDetail'];
 
 function defaults() {
-  const preset = 'high'; // full quality by default; the scan or the gear can step it down
+  // Wallpapers run 24/7 behind the desktop — boot them low-power. The browser
+  // page keeps full quality; the scan or the gear can step it down. Saved
+  // settings (loadSettings merge) still override this first-boot default.
+  const preset = WALLPAPER ? 'low' : 'high';
   return {
     music: false,        // OFF by default
     ambient: false,      // OFF by default (also gates the campfire crackle)
@@ -88,7 +100,10 @@ export function waterSegments() {
 }
 export function frameInterval() {
   const r = loadSettings().gfx.frameRate;
-  return r >= 60 ? 0 : 1 / r; // 60 = uncapped (full display refresh)
+  // 60 caps at 1/60 (never 0 = uncapped — that made every rAF tick render,
+  // 2.4× the work on a 144Hz display). Wallpaper mode never exceeds 30 fps.
+  const eff = WALLPAPER ? Math.min(r, 30) : r;
+  return 1 / eff;
 }
 
 // ---- Performance estimate (0..100) from a gfx block ----
